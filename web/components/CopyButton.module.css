@@ -1,0 +1,20 @@
+.btn {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--haze);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.btn:hover {
+  color: var(--amber);
+  border-color: var(--amber-deep);
+}
+.copied {
+  color: var(--run);
+  border-color: var(--run);
+}

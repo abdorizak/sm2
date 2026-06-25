@@ -1,0 +1,33 @@
+.footer {
+  border-top: 1px solid var(--line);
+  background: var(--ink-2);
+  padding-block: 2.6rem;
+}
+.inner {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.brand {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55ch;
+}
+.mark {
+  color: var(--amber);
+  font-size: 0.85em;
+}
+.tag {
+  color: var(--haze);
+  font-size: 0.9rem;
+}
+.meta {
+  color: var(--dim);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+}

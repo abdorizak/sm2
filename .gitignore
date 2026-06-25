@@ -1,0 +1,17 @@
+# Binaries
+/runix
+/bin/
+*.exe
+
+# Go
+*.test
+*.out
+vendor/
+
+# Runix runtime data (if RUNIX_HOME points into repo)
+.runix/
+
+# Editor
+.DS_Store
+.idea/
+.vscode/
