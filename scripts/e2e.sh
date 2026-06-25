@@ -135,6 +135,14 @@ have "config validate rejects bad policy" "$(cd "$PROJ" && $RUNIX config validat
 section "flush logs"
 have "flush reports files" "$($RUNIX flush api)" "flushed"
 
+section "output: color & box"
+ESC=$(printf '\033')
+have "box renders borders (forced rich)" "$(RUNIX_FORCE_COLOR=1 $RUNIX status --no-color)" "┌"
+have "box shows column header" "$(RUNIX_FORCE_COLOR=1 $RUNIX status --no-color)" "STATE"
+if RUNIX_FORCE_COLOR=1 $RUNIX status | grep -qF "${ESC}["; then ok "color emitted when forced"; else no "color not emitted when forced"; fi
+if RUNIX_FORCE_COLOR=1 $RUNIX status --no-color | grep -qF "${ESC}["; then no "--no-color still emitted escapes"; else ok "--no-color suppresses escapes"; fi
+if $RUNIX status --plain | grep -qF "┌"; then no "--plain still drew a box"; else ok "--plain suppresses box"; fi
+
 section "save / resurrect (survives agent kill)"
 $RUNIX save >/dev/null
 $RUNIX kill >/dev/null

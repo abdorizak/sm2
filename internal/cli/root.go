@@ -9,13 +9,20 @@ import (
 var version = "0.1.0-dev"
 
 func newRootCmd() *cobra.Command {
+	var noColor, plain bool
 	root := &cobra.Command{
 		Use:           "runix",
 		Short:         "Runix — a universal application operations agent",
 		Long:          "Runix runs, monitors and restarts applications written in any language.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			setupOutput(noColor, plain)
+		},
 	}
+
+	root.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
+	root.PersistentFlags().BoolVar(&plain, "plain", false, "plain table output (no box borders)")
 
 	root.AddCommand(
 		newAgentCmd(),

@@ -43,9 +43,9 @@ func printDetail(d *ipc.AppDetail) {
 	}
 
 	s, spec := d.Status, d.Spec
-	fmt.Printf("● %s\n", s.Name)
+	fmt.Printf("%s %s\n", green("●"), cyan(s.Name))
 	row("namespace", spec.Namespace)
-	row("state", s.State)
+	row("state", colorState(s.State))
 	row("command", spec.Command)
 	row("directory", spec.Dir)
 	if s.PID > 0 {

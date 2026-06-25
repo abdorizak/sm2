@@ -42,28 +42,72 @@ func newStatusCmd() *cobra.Command {
 	return cmd
 }
 
-// printStatus renders a slice of app statuses as a table (or a notice if empty).
+// printStatus renders app statuses: a colored box on a terminal, a plain
+// tab-separated table when piped (so grep/awk still work).
 func printStatus(apps []ipc.AppStatus) {
 	if len(apps) == 0 {
 		fmt.Println("no applications are managed")
 		return
 	}
+	if boxOn {
+		fmt.Print(statusBox(apps))
+		return
+	}
+	statusPlain(apps)
+}
 
+func statusRow(a ipc.AppStatus) (pid, cpu, mem, restarts, uptime string) {
+	pid, cpu, mem = "-", "-", "-"
+	if a.PID > 0 {
+		pid = fmt.Sprintf("%d", a.PID)
+		cpu = fmt.Sprintf("%.1f%%", a.CPUPercent)
+		mem = humanizeBytes(a.MemoryBytes)
+	}
+	restarts = fmt.Sprintf("%d", a.Restarts)
+	uptime = a.Uptime
+	if uptime == "" {
+		uptime = "-"
+	}
+	return
+}
+
+func statusBox(apps []ipc.AppStatus) string {
+	cols := []column{
+		{"NAME", false}, {"STATE", false}, {"PID", true}, {"CPU", true},
+		{"MEM", true}, {"↺", true}, {"UPTIME", true}, {"COMMAND", false},
+	}
+	rows := make([][]string, 0, len(apps))
+	for _, a := range apps {
+		pid, cpu, mem, restarts, uptime := statusRow(a)
+		rows = append(rows, []string{
+			a.Name, a.State, pid, cpu, mem, restarts, uptime, truncate(a.Command, 36),
+		})
+	}
+	decorate := func(col int, raw string) string {
+		switch col {
+		case 1: // STATE
+			return colorState(raw)
+		case 0: // NAME
+			return cyan(raw)
+		case 5: // restarts
+			if raw != "0" {
+				return yellow(raw)
+			}
+			return dim(raw)
+		default:
+			return raw
+		}
+	}
+	return renderBox(cols, rows, decorate)
+}
+
+func statusPlain(apps []ipc.AppStatus) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
 	fmt.Fprintln(w, "NAME\tSTATE\tPID\tCPU\tMEM\tRESTARTS\tUPTIME\tCOMMAND")
 	for _, a := range apps {
-		pid, cpu, mem := "-", "-", "-"
-		if a.PID > 0 {
-			pid = fmt.Sprintf("%d", a.PID)
-			cpu = fmt.Sprintf("%.1f%%", a.CPUPercent)
-			mem = humanizeBytes(a.MemoryBytes)
-		}
-		uptime := a.Uptime
-		if uptime == "" {
-			uptime = "-"
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s\n",
-			a.Name, a.State, pid, cpu, mem, a.Restarts, uptime, a.Command)
+		pid, cpu, mem, restarts, uptime := statusRow(a)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			a.Name, colorState(a.State), pid, cpu, mem, restarts, uptime, a.Command)
 	}
 	w.Flush()
 }
