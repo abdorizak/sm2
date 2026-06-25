@@ -12,7 +12,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/cabdirizaaqyare/runix/internal/events"
+	"github.com/abdorizak/runix/internal/events"
 )
 
 // Discord posts events to a Discord webhook. It is an events.Sink whose Emit

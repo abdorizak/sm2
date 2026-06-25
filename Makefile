@@ -1,7 +1,7 @@
 BINARY  := runix
 PKG     := ./cmd/runix
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0-dev")
-LDFLAGS := -X 'github.com/cabdirizaaqyare/runix/internal/cli.version=$(VERSION)'
+LDFLAGS := -X 'github.com/abdorizak/runix/internal/cli.version=$(VERSION)'
 
 .PHONY: build install run test test-cli test-all vet fmt tidy clean help
 

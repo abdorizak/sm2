@@ -15,11 +15,11 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/cabdirizaaqyare/runix/internal/config"
-	"github.com/cabdirizaaqyare/runix/internal/ipc"
-	"github.com/cabdirizaaqyare/runix/internal/notification"
-	"github.com/cabdirizaaqyare/runix/internal/paths"
-	"github.com/cabdirizaaqyare/runix/internal/process"
+	"github.com/abdorizak/runix/internal/config"
+	"github.com/abdorizak/runix/internal/ipc"
+	"github.com/abdorizak/runix/internal/notification"
+	"github.com/abdorizak/runix/internal/paths"
+	"github.com/abdorizak/runix/internal/process"
 )
 
 // Server is the agent daemon.

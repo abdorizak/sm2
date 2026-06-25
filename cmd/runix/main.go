@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cabdirizaaqyare/runix/internal/cli"
+	"github.com/abdorizak/runix/internal/cli"
 )
 
 func main() {

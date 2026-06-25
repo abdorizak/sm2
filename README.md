@@ -14,7 +14,7 @@ over a local Unix socket — no daemon to configure, no runtime to install.
 ## Install
 
 ```sh
-go install github.com/cabdirizaaqyare/runix/cmd/runix@latest
+go install github.com/abdorizak/runix/cmd/runix@latest
 ```
 
 Make sure `$(go env GOPATH)/bin` is on your `PATH`.

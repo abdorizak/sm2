@@ -14,8 +14,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/cabdirizaaqyare/runix/internal/ipc"
-	"github.com/cabdirizaaqyare/runix/internal/paths"
+	"github.com/abdorizak/runix/internal/ipc"
+	"github.com/abdorizak/runix/internal/paths"
 )
 
 // Config is the top-level runix.yaml document.

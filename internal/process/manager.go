@@ -11,8 +11,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/cabdirizaaqyare/runix/internal/events"
-	"github.com/cabdirizaaqyare/runix/internal/ipc"
+	"github.com/abdorizak/runix/internal/events"
+	"github.com/abdorizak/runix/internal/ipc"
 )
 
 // Manager owns the set of running applications.

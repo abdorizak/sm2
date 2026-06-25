@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cabdirizaaqyare/runix/internal/agent"
-	"github.com/cabdirizaaqyare/runix/internal/logger"
+	"github.com/abdorizak/runix/internal/agent"
+	"github.com/abdorizak/runix/internal/logger"
 )
 
 func newAgentCmd() *cobra.Command {

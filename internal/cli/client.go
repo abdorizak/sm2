@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cabdirizaaqyare/runix/internal/ipc"
-	"github.com/cabdirizaaqyare/runix/internal/paths"
+	"github.com/abdorizak/runix/internal/ipc"
+	"github.com/abdorizak/runix/internal/paths"
 )
 
 // request ensures the agent is running, then sends a single request and

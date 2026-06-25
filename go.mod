@@ -1,4 +1,4 @@
-module github.com/cabdirizaaqyare/runix
+module github.com/abdorizak/runix
 
 go 1.24
 
