@@ -58,6 +58,9 @@ Run `rx <command> --help` for usage, or see the full reference in the docs site.
 
 ## Configuration
 
+Describe your stack in `runix.yaml` **or** `runix.toml` — Runix picks the parser
+by file extension. `rx config init -c runix.toml` writes a TOML starter.
+
 ```yaml
 agent:
   name: production
@@ -80,7 +83,7 @@ notifications:
 ## Development
 
 ```sh
-make build        # compile to ./bin/runix
+make build        # compile to ./bin/rx
 make test         # Go unit tests
 make test-cli     # end-to-end CLI smoke test
 make test-all     # both

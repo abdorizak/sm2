@@ -132,6 +132,12 @@ have "config reload starts svc" "$(cd "$PROJ" && $RUNIX config reload)" "svc"
 printf 'apps:\n  x:\n    command: "./x"\n    restart:\n      policy: bogus\n' > "$PROJ/bad.yaml"
 have "config validate rejects bad policy" "$(cd "$PROJ" && $RUNIX config validate -c bad.yaml 2>&1)" "invalid"
 
+section "config: TOML format"
+printf '[apps.tsvc]\ncommand = "%s"\nrestart = { policy = "always" }\n' "$FOREVER" > "$PROJ/runix.toml"
+have "TOML config validates" "$(cd "$PROJ" && $RUNIX config validate -c runix.toml 2>&1)" "valid"
+have "TOML config reloads" "$(cd "$PROJ" && $RUNIX config reload -c runix.toml 2>&1)" "tsvc"
+have "config init writes TOML" "$(cd "$PROJ" && $RUNIX config init -c new.toml >/dev/null && cat new.toml)" "[agent]"
+
 section "flush logs"
 have "flush reports files" "$($RUNIX flush api)" "flushed"
 

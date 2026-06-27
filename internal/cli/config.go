@@ -42,7 +42,8 @@ func newConfigInitCmd(path *string) *cobra.Command {
 			if _, err := os.Stat(target); err == nil {
 				return fmt.Errorf("%s already exists", target)
 			}
-			if err := os.WriteFile(target, []byte(config.DefaultYAML), 0o644); err != nil {
+			content := config.DefaultConfig(config.FormatFor(target))
+			if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
 				return err
 			}
 			fmt.Printf("wrote %s\n", target)
@@ -57,11 +58,11 @@ func newConfigShowCmd(path *string) *cobra.Command {
 		Short: "Print the parsed configuration",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _, err := loadResolved(*path)
+			cfg, resolved, err := loadResolved(*path)
 			if err != nil {
 				return err
 			}
-			out, err := cfg.Render()
+			out, err := cfg.Render(config.FormatFor(resolved))
 			if err != nil {
 				return err
 			}

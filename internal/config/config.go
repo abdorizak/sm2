@@ -12,71 +12,73 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
 	"github.com/abdorizak/runix/internal/ipc"
 	"github.com/abdorizak/runix/internal/paths"
 )
 
-// Config is the top-level runix.yaml document.
+// Config is the top-level runix configuration document (YAML or TOML).
 type Config struct {
-	Agent         Agent                `yaml:"agent"`
-	Apps          map[string]AppConfig `yaml:"apps"`
-	Notifications Notifications        `yaml:"notifications"`
-	Health        Health               `yaml:"health"`
+	Agent         Agent                `yaml:"agent" toml:"agent"`
+	Apps          map[string]AppConfig `yaml:"apps" toml:"apps"`
+	Notifications Notifications        `yaml:"notifications" toml:"notifications"`
+	Health        Health               `yaml:"health" toml:"health"`
 }
 
 // Agent holds agent-wide settings.
 type Agent struct {
-	Name        string `yaml:"name"`
-	Environment string `yaml:"environment"`
+	Name        string `yaml:"name" toml:"name"`
+	Environment string `yaml:"environment" toml:"environment"`
 }
 
 // AppConfig is one app's declaration.
 type AppConfig struct {
-	Command     string            `yaml:"command"`
-	Directory   string            `yaml:"directory,omitempty"`
-	Namespace   string            `yaml:"namespace,omitempty"`
-	Restart     Restart           `yaml:"restart,omitempty"`
-	Instances   int               `yaml:"instances,omitempty"`
-	Environment map[string]string `yaml:"environment,omitempty"`
+	Command     string            `yaml:"command" toml:"command"`
+	Directory   string            `yaml:"directory,omitempty" toml:"directory,omitempty"`
+	Namespace   string            `yaml:"namespace,omitempty" toml:"namespace,omitempty"`
+	Restart     Restart           `yaml:"restart,omitempty" toml:"restart,omitempty"`
+	Instances   int               `yaml:"instances,omitempty" toml:"instances,omitempty"`
+	Environment map[string]string `yaml:"environment,omitempty" toml:"environment,omitempty"`
 
-	KillTimeout      string   `yaml:"kill_timeout,omitempty"`
-	RestartDelay     string   `yaml:"restart_delay,omitempty"`
-	MaxMemoryRestart string   `yaml:"max_memory_restart,omitempty"`
-	Watch            bool     `yaml:"watch,omitempty"`
-	IgnoreWatch      []string `yaml:"ignore_watch,omitempty"`
-	CronRestart      string   `yaml:"cron_restart,omitempty"`
-	NoAutostart      bool     `yaml:"no_autostart,omitempty"`
+	KillTimeout      string   `yaml:"kill_timeout,omitempty" toml:"kill_timeout,omitempty"`
+	RestartDelay     string   `yaml:"restart_delay,omitempty" toml:"restart_delay,omitempty"`
+	MaxMemoryRestart string   `yaml:"max_memory_restart,omitempty" toml:"max_memory_restart,omitempty"`
+	Watch            bool     `yaml:"watch,omitempty" toml:"watch,omitempty"`
+	IgnoreWatch      []string `yaml:"ignore_watch,omitempty" toml:"ignore_watch,omitempty"`
+	CronRestart      string   `yaml:"cron_restart,omitempty" toml:"cron_restart,omitempty"`
+	NoAutostart      bool     `yaml:"no_autostart,omitempty" toml:"no_autostart,omitempty"`
 }
 
 // Restart is an app's restart policy.
 type Restart struct {
-	Policy     string `yaml:"policy,omitempty"`
-	MaxRetries int    `yaml:"max_retries,omitempty"`
+	Policy     string `yaml:"policy,omitempty" toml:"policy,omitempty"`
+	MaxRetries int    `yaml:"max_retries,omitempty" toml:"max_retries,omitempty"`
 }
 
 // Notifications configures outbound event delivery.
 type Notifications struct {
-	Discord Discord `yaml:"discord"`
+	Discord Discord `yaml:"discord" toml:"discord"`
 }
 
 // Discord is the Discord webhook integration config.
 type Discord struct {
-	Enabled bool   `yaml:"enabled"`
-	Webhook string `yaml:"webhook"`
+	Enabled bool   `yaml:"enabled" toml:"enabled"`
+	Webhook string `yaml:"webhook" toml:"webhook"`
 }
 
 // Health configures periodic health checks.
 type Health struct {
-	Enabled  bool   `yaml:"enabled"`
-	Interval string `yaml:"interval"`
+	Enabled  bool   `yaml:"enabled" toml:"enabled"`
+	Interval string `yaml:"interval" toml:"interval"`
 }
 
 // validPolicies is the set of accepted restart policies (empty = on-failure).
 var validPolicies = map[string]bool{"": true, "always": true, "on-failure": true, "never": true}
 
-// Load reads and parses a config file. Unknown fields are rejected so typos
+// Load reads and parses a config file, choosing TOML or YAML by extension
+// (.toml → TOML, anything else → YAML). Unknown fields are rejected so typos
 // surface as errors rather than being silently ignored.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
@@ -84,12 +86,28 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	var c Config
-	dec := yaml.NewDecoder(bytes.NewReader(data))
-	dec.KnownFields(true)
-	if err := dec.Decode(&c); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+	if FormatFor(path) == "toml" {
+		dec := toml.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&c); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", path, err)
+		}
+	} else {
+		dec := yaml.NewDecoder(bytes.NewReader(data))
+		dec.KnownFields(true)
+		if err := dec.Decode(&c); err != nil {
+			return nil, fmt.Errorf("parse %s: %w", path, err)
+		}
 	}
 	return &c, nil
+}
+
+// FormatFor returns "toml" for a .toml path, otherwise "yaml".
+func FormatFor(path string) string {
+	if strings.EqualFold(filepath.Ext(path), ".toml") {
+		return "toml"
+	}
+	return "yaml"
 }
 
 // Validate checks the config for structural and semantic errors.
@@ -213,19 +231,29 @@ func humanBytes(s string) (int64, error) {
 	return int64(n * float64(mult)), nil
 }
 
-// Render marshals the config back to YAML (used by `config show`).
-func (c *Config) Render() ([]byte, error) {
+// Render marshals the config in the given format ("toml" or "yaml").
+func (c *Config) Render(format string) ([]byte, error) {
+	if format == "toml" {
+		return toml.Marshal(c)
+	}
 	return yaml.Marshal(c)
 }
 
 // ResolvePath returns the first config file that exists, checking the explicit
-// flag, then ./runix.yaml, then ~/.runix/runix.yaml. Returns "" if none found.
+// flag, then the current directory, then ~/.runix, trying both runix.toml and
+// runix.yaml. Returns "" if none found.
 func ResolvePath(flag string) string {
 	candidates := []string{}
 	if flag != "" {
 		candidates = append(candidates, flag)
 	}
-	candidates = append(candidates, "runix.yaml", filepath.Join(paths.Root(), "runix.yaml"))
+	for _, dir := range []string{".", paths.Root()} {
+		candidates = append(candidates,
+			filepath.Join(dir, "runix.toml"),
+			filepath.Join(dir, "runix.yaml"),
+			filepath.Join(dir, "runix.yml"),
+		)
+	}
 	for _, p := range candidates {
 		if info, err := os.Stat(p); err == nil && !info.IsDir() {
 			return p
@@ -260,3 +288,35 @@ health:
   enabled: true
   interval: 30s
 `
+
+// DefaultTOML is the starter config written by `config init -c runix.toml`.
+const DefaultTOML = `# Runix configuration
+
+[agent]
+name = "my-server"
+environment = "development"
+
+# [apps.example]
+# command = "./example"
+# directory = ""
+# instances = 1
+# restart = { policy = "on-failure", max_retries = 5 }  # always | on-failure | never
+# [apps.example.environment]
+# PORT = "8080"
+
+[notifications.discord]
+enabled = false
+webhook = ""
+
+[health]
+enabled = true
+interval = "30s"
+`
+
+// DefaultConfig returns the starter template for the given format.
+func DefaultConfig(format string) string {
+	if format == "toml" {
+		return DefaultTOML
+	}
+	return DefaultYAML
+}
