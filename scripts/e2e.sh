@@ -9,7 +9,7 @@
 
 set -u
 
-RUNIX="${RUNIX:-$(pwd)/bin/runix}"
+RUNIX="${RUNIX:-$(pwd)/bin/rx}"
 WORK="$(mktemp -d)"
 export RUNIX_HOME="$WORK/home"
 PROJ="$WORK/proj"
@@ -44,7 +44,7 @@ FOREVER='while true; do sleep 1; done'
 printf "${BOLD}Runix CLI end-to-end test${OFF}\n${DIM}binary: %s\nhome:   %s${OFF}\n" "$RUNIX" "$RUNIX_HOME"
 
 section "version & ping"
-have "version prints runix" "$($RUNIX version)" "runix"
+have "version prints the command name" "$($RUNIX version)" "rx"
 have "ping returns pong (boots agent)" "$($RUNIX ping)" "pong"
 
 section "start / status / aliases"
