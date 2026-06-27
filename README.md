@@ -80,6 +80,20 @@ notifications:
     webhook: "https://discord.com/api/webhooks/…"
 ```
 
+### Environment & reload
+
+An app's environment is a **base** it inherits plus **per-app overrides**
+(`environment:` in config, or `-e KEY=VALUE` on `start`); overrides win.
+
+- **Change env in config** → `rx config reload` restarts the apps whose env (or
+  anything else) changed, leaving the rest running.
+- **Pull your current shell env into a running app** → `rx restart <app> --update-env`.
+  A plain `rx restart` keeps the agent's older environment, so use `--update-env`
+  after you `export` something new.
+
+`rx reload` is an alias of `restart`. Runix restarts the process (a brief blip) —
+it is not a zero-downtime cluster reload like PM2's.
+
 ## Development
 
 ```sh

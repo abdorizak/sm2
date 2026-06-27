@@ -50,6 +50,7 @@ type app struct {
 	startedAt  time.Time
 	stopping   bool
 	restarting bool
+	baseEnv    []string // overrides the inherited environment when non-nil
 
 	quit      chan struct{}
 	closeOnce sync.Once
@@ -158,7 +159,7 @@ func (a *app) launchLocked() error {
 
 	cmd := exec.Command("sh", "-c", a.spec.Command)
 	cmd.Dir = a.spec.Dir
-	cmd.Env = buildEnv(a.spec.Env)
+	cmd.Env = a.environ()
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	// Run in its own process group so we can signal the whole tree.
@@ -511,13 +512,26 @@ func (a *app) monitorCron(sched cronSchedule) {
 	}
 }
 
-// buildEnv merges the parent environment with per-app overrides.
-func buildEnv(extra map[string]string) []string {
-	env := os.Environ()
-	for k, v := range extra {
+// environ builds the process environment: a base (the agent's environment, or a
+// refreshed one from --update-env) plus the app's explicit overrides, which win.
+// Caller must hold a.mu.
+func (a *app) environ() []string {
+	base := a.baseEnv
+	if base == nil {
+		base = os.Environ()
+	}
+	env := append([]string(nil), base...)
+	for k, v := range a.spec.Env {
 		env = append(env, k+"="+v)
 	}
 	return env
+}
+
+// setBaseEnv refreshes the inherited environment used on the next launch.
+func (a *app) setBaseEnv(env []string) {
+	a.mu.Lock()
+	a.baseEnv = env
+	a.mu.Unlock()
 }
 
 // humanBytes renders a byte count compactly (e.g. 18.4MB).

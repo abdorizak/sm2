@@ -25,6 +25,8 @@ type Request struct {
 	Namespace  string   `json:"namespace,omitempty"`
 	Signal     string   `json:"signal,omitempty"`
 	ConfigPath string   `json:"config_path,omitempty"`
+	UpdateEnv  bool     `json:"update_env,omitempty"` // refresh the base env on restart
+	Env        []string `json:"env,omitempty"`        // caller's environment, for UpdateEnv
 }
 
 // AppSpec describes an application the agent should manage.

@@ -138,6 +138,17 @@ have "TOML config validates" "$(cd "$PROJ" && $RUNIX config validate -c runix.to
 have "TOML config reloads" "$(cd "$PROJ" && $RUNIX config reload -c runix.toml 2>&1)" "tsvc"
 have "config init writes TOML" "$(cd "$PROJ" && $RUNIX config init -c new.toml >/dev/null && cat new.toml)" "[agent]"
 
+section "restart --update-env"
+unset RX_E2E_VAR
+$RUNIX start envapp --cmd 'echo "V=[$RX_E2E_VAR]"; while true; do sleep 1; done' >/dev/null
+sleep 1
+export RX_E2E_VAR=present
+$RUNIX restart envapp --update-env >/dev/null
+sleep 1
+have "update-env injects new var" "$(tail -1 "$RUNIX_HOME/logs/envapp.stdout.log")" "V=[present]"
+have "reload alias works" "$($RUNIX reload envapp 2>&1)" "restarted"
+unset RX_E2E_VAR
+
 section "flush logs"
 have "flush reports files" "$($RUNIX flush api)" "flushed"
 

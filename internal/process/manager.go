@@ -78,15 +78,23 @@ func (m *Manager) Stop(name, namespace string) error {
 	return nil
 }
 
-// Restart restarts the targeted application(s).
-func (m *Manager) Restart(name, namespace string) error {
+// Restart restarts the targeted application(s). When updateEnv is true, the
+// app's inherited environment is refreshed from env before relaunching.
+func (m *Manager) Restart(name, namespace string, updateEnv bool, env []string) error {
 	apps, err := m.resolve(name, namespace)
 	if err != nil {
 		return err
 	}
+	reason := "manual restart"
+	if updateEnv {
+		reason = "manual restart (env refreshed)"
+	}
 	var errs []error
 	for _, a := range apps {
-		if err := a.restart(true, "manual restart"); err != nil {
+		if updateEnv {
+			a.setBaseEnv(env)
+		}
+		if err := a.restart(true, reason); err != nil {
 			errs = append(errs, err)
 		}
 	}

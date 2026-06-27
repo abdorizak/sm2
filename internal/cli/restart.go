@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -9,27 +10,46 @@ import (
 )
 
 func newRestartCmd() *cobra.Command {
-	var namespace string
+	var (
+		namespace string
+		updateEnv bool
+	)
 	cmd := &cobra.Command{
-		Use:   "restart <name|all>",
-		Short: "Restart one app, all apps, or a namespace",
-		Args:  cobra.MaximumNArgs(1),
+		Use:     "restart <name|all>",
+		Aliases: []string{"reload"},
+		Short:   "Restart one app, all apps, or a namespace",
+		Long: "Restart the targeted app(s).\n\n" +
+			"With --update-env, the current shell environment is re-read and applied\n" +
+			"before relaunch (the app's explicit config env still takes precedence).\n" +
+			"`reload` is an alias; note Runix restarts the process — it is not a\n" +
+			"zero-downtime cluster reload.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, err := targetName(args, namespace)
 			if err != nil {
 				return err
 			}
-			resp, err := request(ipc.Request{Action: ipc.ActionRestart, Name: name, Namespace: namespace})
+			req := ipc.Request{Action: ipc.ActionRestart, Name: name, Namespace: namespace}
+			if updateEnv {
+				req.UpdateEnv = true
+				req.Env = os.Environ()
+			}
+			resp, err := request(req)
 			if err != nil {
 				return err
 			}
 			if !resp.OK {
 				return fmt.Errorf("%s", resp.Error)
 			}
-			fmt.Printf("restarted %s\n", describeTarget(name, namespace))
+			suffix := ""
+			if updateEnv {
+				suffix = " (env refreshed)"
+			}
+			fmt.Printf("restarted %s%s\n", describeTarget(name, namespace), suffix)
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&namespace, "namespace", "", "act on all apps in this namespace")
+	cmd.Flags().BoolVar(&updateEnv, "update-env", false, "re-read the current environment before restarting")
 	return cmd
 }

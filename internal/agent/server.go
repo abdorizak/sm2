@@ -125,7 +125,7 @@ func (s *Server) dispatch(req ipc.Request) ipc.Response {
 		return ipc.Response{OK: true}
 
 	case ipc.ActionRestart:
-		if err := s.mgr.Restart(req.Name, req.Namespace); err != nil {
+		if err := s.mgr.Restart(req.Name, req.Namespace, req.UpdateEnv, req.Env); err != nil {
 			return ipc.Response{Error: err.Error()}
 		}
 		return ipc.Response{OK: true}
