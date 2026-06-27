@@ -1,21 +1,21 @@
-BINARY  := runix
-PKG     := ./cmd/runix
+# Three command names, one program: runix (full) plus rx and sp (short).
+CMDS    := runix rx sp
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0-dev")
 LDFLAGS := -X 'github.com/abdorizak/runix/internal/cli.version=$(VERSION)'
 
 .PHONY: build install run test test-cli test-all vet fmt tidy clean help
 
-## build: compile the binary into ./bin
+## build: compile runix, rx and sp into ./bin
 build:
-	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) $(PKG)
+	@for c in $(CMDS); do go build -ldflags "$(LDFLAGS)" -o bin/$$c ./cmd/$$c; done
 
-## install: install runix into $GOBIN (or $GOPATH/bin) so it is on your PATH
+## install: install runix, rx and sp into $GOBIN (or $GOPATH/bin)
 install:
-	go install -ldflags "$(LDFLAGS)" $(PKG)
+	@for c in $(CMDS); do go install -ldflags "$(LDFLAGS)" ./cmd/$$c; done
 
-## run: build then run the binary
+## run: build then run runix
 run: build
-	./bin/$(BINARY)
+	./bin/runix
 
 ## test: run Go unit tests
 test:

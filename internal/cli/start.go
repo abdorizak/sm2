@@ -37,9 +37,9 @@ func newStartCmd() *cobra.Command {
 		Use:   "start <name>",
 		Short: "Start and supervise an application",
 		Args:  cobra.ExactArgs(1),
-		Example: "  runix start api --cmd \"./api\"\n" +
-			"  runix start web --cmd \"npm run start\" --restart always -i 2\n" +
-			"  runix start job --cmd \"./job\" --cron-restart \"0 3 * * *\"",
+		Example: "  rx start api --cmd \"./api\"\n" +
+			"  rx start web --cmd \"npm run start\" --restart always -i 2\n" +
+			"  rx start job --cmd \"./job\" --cron-restart \"0 3 * * *\"",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if command == "" {
 				return fmt.Errorf("--cmd is required")

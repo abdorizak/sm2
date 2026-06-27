@@ -2,16 +2,30 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
 )
 
 // version is the Runix build version (overridable via -ldflags).
 var version = "0.1.0-dev"
 
+// invokedName returns the command name as the user typed it, so help and usage
+// reflect whichever alias launched the binary (runix, rx, or sp).
+func invokedName() string {
+	if len(os.Args) > 0 {
+		if b := filepath.Base(os.Args[0]); b != "" && b != "." && b != "/" {
+			return b
+		}
+	}
+	return "runix"
+}
+
 func newRootCmd() *cobra.Command {
 	var noColor, plain bool
 	root := &cobra.Command{
-		Use:           "runix",
+		Use:           invokedName(),
 		Short:         "Runix — a universal application operations agent",
 		Long:          "Runix runs, monitors and restarts applications written in any language.",
 		SilenceUsage:  true,

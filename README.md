@@ -13,8 +13,13 @@ over a local Unix socket — no daemon to configure, no runtime to install.
 
 ## Install
 
+Runix ships under three command names — pick whichever you like to type. They are
+the same program and share one agent:
+
 ```sh
-go install github.com/abdorizak/runix/cmd/runix@latest
+go install github.com/abdorizak/runix/cmd/rx@latest      # short: rx
+go install github.com/abdorizak/runix/cmd/sp@latest      # short: sp
+go install github.com/abdorizak/runix/cmd/runix@latest   # full:  runix
 ```
 
 Make sure `$(go env GOPATH)/bin` is on your `PATH`.
@@ -22,11 +27,13 @@ Make sure `$(go env GOPATH)/bin` is on your `PATH`.
 ## Quick start
 
 ```sh
-runix start api --cmd "./api" --restart always   # run & supervise
-runix status                                      # boxed, colored table
-runix logs api --follow                           # tail output
-runix save                                        # snapshot for reboot survival
+rx start api --cmd "./api" --restart always   # run & supervise
+rx status                                      # boxed, colored table
+rx logs api --follow                           # tail output
+rx save                                        # snapshot for reboot survival
 ```
+
+> `rx`, `sp` and `runix` are interchangeable — `rx start …` and `sp status` talk to the same agent.
 
 ## Features
 
@@ -51,7 +58,7 @@ runix save                                        # snapshot for reboot survival
 | `status` (`ls`/`ps`) `describe` `logs` `flush` `ping` | inspect |
 | `config` `save` `resurrect` `startup` `unstartup` `kill` | config & boot |
 
-Run `runix <command> --help` for usage, or see the full reference in the docs site.
+Run `rx <command> --help` for usage, or see the full reference in the docs site.
 
 ## Configuration
 

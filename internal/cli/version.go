@@ -12,7 +12,7 @@ func newVersionCmd() *cobra.Command {
 		Short: "Print the Runix version",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("runix %s\n", version)
+			fmt.Printf("%s %s\n", invokedName(), version)
 		},
 	}
 }
