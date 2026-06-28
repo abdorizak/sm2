@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/abdorizak/runix/internal/ipc"
-	"github.com/abdorizak/runix/internal/paths"
+	"github.com/abdorizak/sm2/internal/ipc"
+	"github.com/abdorizak/sm2/internal/paths"
 )
 
 // request ensures the agent is running, then sends a single request and
@@ -49,7 +49,7 @@ func ensureAgent() error {
 
 	exe, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("locate runix binary: %w", err)
+		return fmt.Errorf("locate sm2 binary: %w", err)
 	}
 	if err := paths.Ensure(); err != nil {
 		return err

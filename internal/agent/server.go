@@ -1,4 +1,4 @@
-// Package agent implements the Runix background daemon: a Unix-socket server
+// Package agent implements the sm2 background daemon: a Unix-socket server
 // that drives the process manager on behalf of the CLI.
 package agent
 
@@ -15,11 +15,11 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/abdorizak/runix/internal/config"
-	"github.com/abdorizak/runix/internal/ipc"
-	"github.com/abdorizak/runix/internal/notification"
-	"github.com/abdorizak/runix/internal/paths"
-	"github.com/abdorizak/runix/internal/process"
+	"github.com/abdorizak/sm2/internal/config"
+	"github.com/abdorizak/sm2/internal/ipc"
+	"github.com/abdorizak/sm2/internal/notification"
+	"github.com/abdorizak/sm2/internal/paths"
+	"github.com/abdorizak/sm2/internal/process"
 )
 
 // Server is the agent daemon.
@@ -228,7 +228,7 @@ func (s *Server) resurrect() error {
 	data, err := os.ReadFile(paths.Dump())
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("nothing to resurrect (run 'runix save' first)")
+			return fmt.Errorf("nothing to resurrect (run 'sm2 save' first)")
 		}
 		return err
 	}

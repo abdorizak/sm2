@@ -7,18 +7,18 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/abdorizak/runix/internal/config"
-	"github.com/abdorizak/runix/internal/ipc"
+	"github.com/abdorizak/sm2/internal/config"
+	"github.com/abdorizak/sm2/internal/ipc"
 )
 
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Manage the runix.yaml configuration",
+		Short: "Manage the sm2.yaml configuration",
 	}
 
 	var path string
-	cmd.PersistentFlags().StringVarP(&path, "config", "c", "", "path to runix.yaml")
+	cmd.PersistentFlags().StringVarP(&path, "config", "c", "", "path to sm2.yaml")
 
 	cmd.AddCommand(
 		newConfigInitCmd(&path),
@@ -32,12 +32,12 @@ func newConfigCmd() *cobra.Command {
 func newConfigInitCmd(path *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
-		Short: "Write a starter runix.yaml",
+		Short: "Write a starter sm2.yaml",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target := *path
 			if target == "" {
-				target = "runix.yaml"
+				target = "sm2.yaml"
 			}
 			if _, err := os.Stat(target); err == nil {
 				return fmt.Errorf("%s already exists", target)
@@ -123,11 +123,11 @@ func newConfigReloadCmd(path *string) *cobra.Command {
 	}
 }
 
-// loadResolved resolves the config path (flag → ./runix.yaml → ~/.runix) and loads it.
+// loadResolved resolves the config path (flag → ./sm2.yaml → ~/.sm2) and loads it.
 func loadResolved(flag string) (*config.Config, string, error) {
 	resolved := config.ResolvePath(flag)
 	if resolved == "" {
-		return nil, "", fmt.Errorf("no runix.yaml found (use --config or run 'runix config init')")
+		return nil, "", fmt.Errorf("no sm2.yaml found (use --config or run 'sm2 config init')")
 	}
 	cfg, err := config.Load(resolved)
 	if err != nil {

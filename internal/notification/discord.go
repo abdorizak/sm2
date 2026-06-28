@@ -1,4 +1,4 @@
-// Package notification delivers Runix lifecycle events to external services.
+// Package notification delivers sm2 lifecycle events to external services.
 // The first integration is Discord webhooks.
 package notification
 
@@ -12,7 +12,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/abdorizak/runix/internal/events"
+	"github.com/abdorizak/sm2/internal/events"
 )
 
 // Discord posts events to a Discord webhook. It is an events.Sink whose Emit

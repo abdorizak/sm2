@@ -9,7 +9,7 @@ import (
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the Runix version",
+		Short: "Print the sm2 version",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Printf("%s %s\n", invokedName(), version)

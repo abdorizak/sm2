@@ -1,4 +1,4 @@
-module github.com/abdorizak/runix
+module github.com/abdorizak/sm2
 
 go 1.24
 

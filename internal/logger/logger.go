@@ -1,4 +1,4 @@
-// Package logger builds the zerolog loggers used across Runix.
+// Package logger builds the zerolog loggers used across sm2.
 package logger
 
 import (

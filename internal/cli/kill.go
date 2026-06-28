@@ -9,13 +9,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/abdorizak/runix/internal/paths"
+	"github.com/abdorizak/sm2/internal/paths"
 )
 
 func newKillCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "kill",
-		Short: "Stop the Runix agent and all managed apps",
+		Short: "Stop the sm2 agent and all managed apps",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			data, err := os.ReadFile(paths.PidFile())

@@ -1,4 +1,4 @@
-// Package ipc defines the JSON wire protocol between the Runix CLI and agent.
+// Package ipc defines the JSON wire protocol between the sm2 CLI and agent.
 package ipc
 
 // Action names carried in a Request.

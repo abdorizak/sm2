@@ -1,4 +1,4 @@
-// Package process implements the Runix process manager: launching,
+// Package process implements the sm2 process manager: launching,
 // supervising, restarting and reporting on managed applications.
 package process
 
@@ -11,8 +11,8 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/abdorizak/runix/internal/events"
-	"github.com/abdorizak/runix/internal/ipc"
+	"github.com/abdorizak/sm2/internal/events"
+	"github.com/abdorizak/sm2/internal/ipc"
 )
 
 // Manager owns the set of running applications.

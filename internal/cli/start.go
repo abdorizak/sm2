@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/abdorizak/runix/internal/ipc"
+	"github.com/abdorizak/sm2/internal/ipc"
 )
 
 func newStartCmd() *cobra.Command {
@@ -37,9 +37,9 @@ func newStartCmd() *cobra.Command {
 		Use:   "start <name>",
 		Short: "Start and supervise an application",
 		Args:  cobra.ExactArgs(1),
-		Example: "  rx start api --cmd \"./api\"\n" +
-			"  rx start web --cmd \"npm run start\" --restart always -i 2\n" +
-			"  rx start job --cmd \"./job\" --cron-restart \"0 3 * * *\"",
+		Example: "  sm2 start api --cmd \"./api\"\n" +
+			"  sm2 start web --cmd \"npm run start\" --restart always -i 2\n" +
+			"  sm2 start job --cmd \"./job\" --cron-restart \"0 3 * * *\"",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if command == "" {
 				return fmt.Errorf("--cmd is required")

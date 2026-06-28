@@ -1,4 +1,4 @@
-// Package paths centralizes the on-disk locations Runix uses at runtime.
+// Package paths centralizes the on-disk locations sm2 uses at runtime.
 package paths
 
 import (
@@ -6,34 +6,34 @@ import (
 	"path/filepath"
 )
 
-// Root returns the Runix home directory (default ~/.runix, override with RUNIX_HOME).
+// Root returns the sm2 home directory (default ~/.sm2, override with SM2_HOME).
 func Root() string {
-	if v := os.Getenv("RUNIX_HOME"); v != "" {
+	if v := os.Getenv("SM2_HOME"); v != "" {
 		return v
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ".runix"
+		return ".sm2"
 	}
-	return filepath.Join(home, ".runix")
+	return filepath.Join(home, ".sm2")
 }
 
 // LogDir is where per-app stdout/stderr logs are written.
 func LogDir() string { return filepath.Join(Root(), "logs") }
 
 // Socket is the Unix socket the CLI uses to talk to the agent.
-func Socket() string { return filepath.Join(Root(), "runix.sock") }
+func Socket() string { return filepath.Join(Root(), "sm2.sock") }
 
 // PidFile holds the running agent's PID.
 func PidFile() string { return filepath.Join(Root(), "agent.pid") }
 
-// Dump is where `runix save` persists the managed process list.
+// Dump is where `sm2 save` persists the managed process list.
 func Dump() string { return filepath.Join(Root(), "dump.json") }
 
 // AgentLog is where the daemon's own diagnostic log is written when detached.
 func AgentLog() string { return filepath.Join(LogDir(), "agent.log") }
 
-// Ensure creates the Runix directories if they do not yet exist.
+// Ensure creates the sm2 directories if they do not yet exist.
 func Ensure() error {
 	return os.MkdirAll(LogDir(), 0o755)
 }

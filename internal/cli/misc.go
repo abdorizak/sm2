@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/abdorizak/runix/internal/ipc"
+	"github.com/abdorizak/sm2/internal/ipc"
 )
 
 func newPingCmd() *cobra.Command {
@@ -51,7 +51,7 @@ func newSaveCmd() *cobra.Command {
 func newResurrectCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "resurrect",
-		Short: "Restart the apps saved by 'runix save'",
+		Short: "Restart the apps saved by 'sm2 save'",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resp, err := request(ipc.Request{Action: ipc.ActionResurrect})

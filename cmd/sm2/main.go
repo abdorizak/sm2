@@ -1,11 +1,11 @@
-// Command rx is a short alias for the Runix CLI and embedded agent daemon.
+// Command sm2 is the sm2 CLI and embedded agent daemon.
 package main
 
 import (
 	"fmt"
 	"os"
 
-	"github.com/abdorizak/runix/internal/cli"
+	"github.com/abdorizak/sm2/internal/cli"
 )
 
 func main() {

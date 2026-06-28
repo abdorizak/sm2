@@ -1,4 +1,4 @@
-// Package config loads, validates and renders the runix.yaml configuration
+// Package config loads, validates and renders the sm2.yaml configuration
 // and converts it into process specs the manager understands.
 package config
 
@@ -15,11 +15,11 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
-	"github.com/abdorizak/runix/internal/ipc"
-	"github.com/abdorizak/runix/internal/paths"
+	"github.com/abdorizak/sm2/internal/ipc"
+	"github.com/abdorizak/sm2/internal/paths"
 )
 
-// Config is the top-level runix configuration document (YAML or TOML).
+// Config is the top-level sm2 configuration document (YAML or TOML).
 type Config struct {
 	Agent         Agent                `yaml:"agent" toml:"agent"`
 	Apps          map[string]AppConfig `yaml:"apps" toml:"apps"`
@@ -240,8 +240,8 @@ func (c *Config) Render(format string) ([]byte, error) {
 }
 
 // ResolvePath returns the first config file that exists, checking the explicit
-// flag, then the current directory, then ~/.runix, trying both runix.toml and
-// runix.yaml. Returns "" if none found.
+// flag, then the current directory, then ~/.sm2, trying both sm2.toml and
+// sm2.yaml. Returns "" if none found.
 func ResolvePath(flag string) string {
 	candidates := []string{}
 	if flag != "" {
@@ -249,9 +249,9 @@ func ResolvePath(flag string) string {
 	}
 	for _, dir := range []string{".", paths.Root()} {
 		candidates = append(candidates,
-			filepath.Join(dir, "runix.toml"),
-			filepath.Join(dir, "runix.yaml"),
-			filepath.Join(dir, "runix.yml"),
+			filepath.Join(dir, "sm2.toml"),
+			filepath.Join(dir, "sm2.yaml"),
+			filepath.Join(dir, "sm2.yml"),
 		)
 	}
 	for _, p := range candidates {
@@ -263,7 +263,7 @@ func ResolvePath(flag string) string {
 }
 
 // DefaultYAML is the starter config written by `config init`.
-const DefaultYAML = `# Runix configuration
+const DefaultYAML = `# sm2 configuration
 agent:
   name: my-server
   environment: development
@@ -289,8 +289,8 @@ health:
   interval: 30s
 `
 
-// DefaultTOML is the starter config written by `config init -c runix.toml`.
-const DefaultTOML = `# Runix configuration
+// DefaultTOML is the starter config written by `config init -c sm2.toml`.
+const DefaultTOML = `# sm2 configuration
 
 [agent]
 name = "my-server"

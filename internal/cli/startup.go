@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const launchdLabel = "com.runix.agent"
+const launchdLabel = "com.sm2.agent"
 
 func newStartupCmd() *cobra.Command {
 	return &cobra.Command{
@@ -36,7 +36,7 @@ func newStartupCmd() *cobra.Command {
 func newUnstartupCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "unstartup",
-		Short: "Remove the Runix boot service",
+		Short: "Remove the sm2 boot service",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var path, disable string
@@ -46,7 +46,7 @@ func newUnstartupCmd() *cobra.Command {
 				disable = fmt.Sprintf("launchctl unload %s", path)
 			case "linux":
 				path = systemdPath()
-				disable = "systemctl --user disable --now runix"
+				disable = "systemctl --user disable --now sm2"
 			default:
 				return fmt.Errorf("startup is not supported on %s", runtime.GOOS)
 			}
@@ -67,7 +67,7 @@ func launchdPath() string {
 
 func systemdPath() string {
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "systemd", "user", "runix.service")
+	return filepath.Join(home, ".config", "systemd", "user", "sm2.service")
 }
 
 func writeLaunchd(exe string) error {
@@ -99,7 +99,7 @@ func writeLaunchd(exe string) error {
 	}
 	fmt.Printf("wrote launchd agent: %s\n", path)
 	fmt.Printf("enable it with:\n  launchctl load %s\n", path)
-	fmt.Println("then save your process list any time with: runix save")
+	fmt.Println("then save your process list any time with: sm2 save")
 	return nil
 }
 
@@ -109,7 +109,7 @@ func writeSystemd(exe string) error {
 		return err
 	}
 	unit := fmt.Sprintf(`[Unit]
-Description=Runix process agent
+Description=sm2 process agent
 After=network.target
 
 [Service]
@@ -126,7 +126,7 @@ WantedBy=default.target
 		return err
 	}
 	fmt.Printf("wrote systemd user unit: %s\n", path)
-	fmt.Printf("enable it with:\n  systemctl --user daemon-reload && systemctl --user enable --now runix\n")
-	fmt.Println("then save your process list any time with: runix save")
+	fmt.Printf("enable it with:\n  systemctl --user daemon-reload && systemctl --user enable --now sm2\n")
+	fmt.Println("then save your process list any time with: sm2 save")
 	return nil
 }

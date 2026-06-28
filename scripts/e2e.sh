@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# End-to-end smoke test for the Runix CLI. Exercises every command against a
-# throwaway RUNIX_HOME so it never touches your real ~/.runix. Run via:
+# End-to-end smoke test for the sm2 CLI. Exercises every command against a
+# throwaway SM2_HOME so it never touches your real ~/.sm2. Run via:
 #
 #   make test-cli
 #
@@ -9,9 +9,9 @@
 
 set -u
 
-RUNIX="${RUNIX:-$(pwd)/bin/rx}"
+SM2="${SM2:-$(pwd)/bin/sm2}"
 WORK="$(mktemp -d)"
-export RUNIX_HOME="$WORK/home"
+export SM2_HOME="$WORK/home"
 PROJ="$WORK/proj"
 WATCH="$WORK/watch"
 mkdir -p "$PROJ" "$WATCH"
@@ -28,96 +28,96 @@ have(){ # desc  haystack  needle
 section(){ printf "\n${BOLD}» %s${OFF}\n" "$1"; }
 
 cleanup() {
-  "$RUNIX" kill >/dev/null 2>&1 || true
-  [ -f "$RUNIX_HOME/agent.pid" ] && kill "$(cat "$RUNIX_HOME/agent.pid")" 2>/dev/null || true
+  "$SM2" kill >/dev/null 2>&1 || true
+  [ -f "$SM2_HOME/agent.pid" ] && kill "$(cat "$SM2_HOME/agent.pid")" 2>/dev/null || true
   rm -rf "$WORK"
 }
 trap cleanup EXIT
 
-if [ ! -x "$RUNIX" ]; then
-  echo "runix binary not found at $RUNIX (run 'make build' first)" >&2
+if [ ! -x "$SM2" ]; then
+  echo "sm2 binary not found at $SM2 (run 'make build' first)" >&2
   exit 1
 fi
 
 FOREVER='while true; do sleep 1; done'
 
-printf "${BOLD}Runix CLI end-to-end test${OFF}\n${DIM}binary: %s\nhome:   %s${OFF}\n" "$RUNIX" "$RUNIX_HOME"
+printf "${BOLD}sm2 CLI end-to-end test${OFF}\n${DIM}binary: %s\nhome:   %s${OFF}\n" "$SM2" "$SM2_HOME"
 
 section "version & ping"
-have "version prints the command name" "$($RUNIX version)" "rx"
-have "ping returns pong (boots agent)" "$($RUNIX ping)" "pong"
+have "version prints the command name" "$($SM2 version)" "sm2"
+have "ping returns pong (boots agent)" "$($SM2 ping)" "pong"
 
 section "start / status / aliases"
-$RUNIX start api --cmd "$FOREVER" --restart always >/dev/null
-have "status shows api RUNNING" "$($RUNIX status)" "api"
-have "status shows RUNNING state" "$($RUNIX status)" "RUNNING"
-have "ls alias works" "$($RUNIX ls)" "api"
-have "ps alias works" "$($RUNIX ps)" "api"
-have "status --json emits json" "$($RUNIX status --json)" '"name": "api"'
+$SM2 start api --cmd "$FOREVER" --restart always >/dev/null
+have "status shows api RUNNING" "$($SM2 status)" "api"
+have "status shows RUNNING state" "$($SM2 status)" "RUNNING"
+have "ls alias works" "$($SM2 ls)" "api"
+have "ps alias works" "$($SM2 ps)" "api"
+have "status --json emits json" "$($SM2 status --json)" '"name": "api"'
 
 section "instances (-i) & namespace"
-$RUNIX start web --cmd "$FOREVER" -i 2 >/dev/null
-have "instance web-0 created" "$($RUNIX status)" "web-0"
-have "instance web-1 created" "$($RUNIX status)" "web-1"
-$RUNIX start worker --cmd "$FOREVER" --namespace jobs >/dev/null
-have "restart by namespace" "$($RUNIX restart --namespace jobs)" "namespace \"jobs\""
+$SM2 start web --cmd "$FOREVER" -i 2 >/dev/null
+have "instance web-0 created" "$($SM2 status)" "web-0"
+have "instance web-1 created" "$($SM2 status)" "web-1"
+$SM2 start worker --cmd "$FOREVER" --namespace jobs >/dev/null
+have "restart by namespace" "$($SM2 restart --namespace jobs)" "namespace \"jobs\""
 
 section "describe"
-DESC="$($RUNIX describe api)"
+DESC="$($SM2 describe api)"
 have "describe shows command" "$DESC" "$FOREVER"
 have "describe shows restart policy" "$DESC" "restart policy"
 have "describe shows log path" "$DESC" "stdout log"
 
 section "logs"
-$RUNIX start chatter --cmd 'i=0; while true; do echo "line-$i"; i=$((i+1)); sleep 1; done' >/dev/null
+$SM2 start chatter --cmd 'i=0; while true; do echo "line-$i"; i=$((i+1)); sleep 1; done' >/dev/null
 sleep 2
-have "logs shows output" "$($RUNIX logs chatter)" "line-0"
+have "logs shows output" "$($SM2 logs chatter)" "line-0"
 
 section "no-autostart"
-$RUNIX start idle --cmd "$FOREVER" --no-autostart >/dev/null
-have "no-autostart registers as STOPPED" "$($RUNIX describe idle)" "STOPPED"
+$SM2 start idle --cmd "$FOREVER" --no-autostart >/dev/null
+have "no-autostart registers as STOPPED" "$($SM2 describe idle)" "STOPPED"
 
 section "tuning flags stored (describe)"
-$RUNIX start tuned --cmd "$FOREVER" --kill-timeout 8s --restart-delay 250ms --cron-restart "0 3 * * *" >/dev/null
-TUNED="$($RUNIX describe tuned)"
+$SM2 start tuned --cmd "$FOREVER" --kill-timeout 8s --restart-delay 250ms --cron-restart "0 3 * * *" >/dev/null
+TUNED="$($SM2 describe tuned)"
 have "kill-timeout recorded" "$TUNED" "kill timeout"
 have "restart-delay recorded" "$TUNED" "restart delay"
 have "cron-restart recorded" "$TUNED" "0 3 * * *"
 
 section "signal (HUP trap)"
-$RUNIX start sig --cmd 'trap "echo GOT_HUP" HUP; while true; do sleep 1; done' >/dev/null
+$SM2 start sig --cmd 'trap "echo GOT_HUP" HUP; while true; do sleep 1; done' >/dev/null
 sleep 1
-$RUNIX signal HUP sig >/dev/null
+$SM2 signal HUP sig >/dev/null
 sleep 1
-have "app received HUP" "$(cat "$RUNIX_HOME/logs/sig.stdout.log")" "GOT_HUP"
+have "app received HUP" "$(cat "$SM2_HOME/logs/sig.stdout.log")" "GOT_HUP"
 
 section "max-memory-restart (limit 1K → restarts)"
-$RUNIX start mem --cmd 'sleep 1000' --restart always --max-memory-restart 1K >/dev/null
+$SM2 start mem --cmd 'sleep 1000' --restart always --max-memory-restart 1K >/dev/null
 sleep 7
-MEMR="$($RUNIX describe mem | awk '/restarts/{print $2}')"
+MEMR="$($SM2 describe mem | awk '/restarts/{print $2}')"
 if [ "${MEMR:-0}" -ge 1 ]; then ok "memory guard restarted app (restarts=$MEMR)"; else no "memory guard did not restart (restarts=$MEMR)"; fi
 
 section "watch (file change → restart)"
 echo v1 > "$WATCH/f.txt"
-$RUNIX start watcher --cmd 'sleep 1000' --restart always --watch --dir "$WATCH" >/dev/null
+$SM2 start watcher --cmd 'sleep 1000' --restart always --watch --dir "$WATCH" >/dev/null
 sleep 2
 echo v2 > "$WATCH/f.txt"
 sleep 3
-WR="$($RUNIX describe watcher | awk '/restarts/{print $2}')"
+WR="$($SM2 describe watcher | awk '/restarts/{print $2}')"
 if [ "${WR:-0}" -ge 1 ]; then ok "watch restarted app (restarts=$WR)"; else no "watch did not restart (restarts=$WR)"; fi
 
 section "reset counters"
-$RUNIX reset watcher >/dev/null
-have "reset zeroes restarts" "$($RUNIX describe watcher | awk '/restarts/{print $2}')" "0"
+$SM2 reset watcher >/dev/null
+have "reset zeroes restarts" "$($SM2 describe watcher | awk '/restarts/{print $2}')" "0"
 
 section "stop / delete targeting"
-have "stop all" "$($RUNIX stop all)" "all apps"
-$RUNIX start temp --cmd "$FOREVER" >/dev/null
-have "delete one app" "$($RUNIX delete temp)" "deleted"
-have "deleted app is gone" "$($RUNIX status)" "api"  # api still listed; sanity that status works
+have "stop all" "$($SM2 stop all)" "all apps"
+$SM2 start temp --cmd "$FOREVER" >/dev/null
+have "delete one app" "$($SM2 delete temp)" "deleted"
+have "deleted app is gone" "$($SM2 status)" "api"  # api still listed; sanity that status works
 
 section "config engine"
-cat > "$PROJ/runix.yaml" <<YAML
+cat > "$PROJ/sm2.yaml" <<YAML
 agent:
   name: e2e
 apps:
@@ -126,56 +126,56 @@ apps:
     restart:
       policy: always
 YAML
-have "config validate" "$(cd "$PROJ" && $RUNIX config validate)" "valid"
-have "config reload starts svc" "$(cd "$PROJ" && $RUNIX config reload)" "svc"
+have "config validate" "$(cd "$PROJ" && $SM2 config validate)" "valid"
+have "config reload starts svc" "$(cd "$PROJ" && $SM2 config reload)" "svc"
 # break it and confirm validation fails
 printf 'apps:\n  x:\n    command: "./x"\n    restart:\n      policy: bogus\n' > "$PROJ/bad.yaml"
-have "config validate rejects bad policy" "$(cd "$PROJ" && $RUNIX config validate -c bad.yaml 2>&1)" "invalid"
+have "config validate rejects bad policy" "$(cd "$PROJ" && $SM2 config validate -c bad.yaml 2>&1)" "invalid"
 
 section "config: TOML format"
-printf '[apps.tsvc]\ncommand = "%s"\nrestart = { policy = "always" }\n' "$FOREVER" > "$PROJ/runix.toml"
-have "TOML config validates" "$(cd "$PROJ" && $RUNIX config validate -c runix.toml 2>&1)" "valid"
-have "TOML config reloads" "$(cd "$PROJ" && $RUNIX config reload -c runix.toml 2>&1)" "tsvc"
-have "config init writes TOML" "$(cd "$PROJ" && $RUNIX config init -c new.toml >/dev/null && cat new.toml)" "[agent]"
+printf '[apps.tsvc]\ncommand = "%s"\nrestart = { policy = "always" }\n' "$FOREVER" > "$PROJ/sm2.toml"
+have "TOML config validates" "$(cd "$PROJ" && $SM2 config validate -c sm2.toml 2>&1)" "valid"
+have "TOML config reloads" "$(cd "$PROJ" && $SM2 config reload -c sm2.toml 2>&1)" "tsvc"
+have "config init writes TOML" "$(cd "$PROJ" && $SM2 config init -c new.toml >/dev/null && cat new.toml)" "[agent]"
 
 section "restart --update-env"
 unset RX_E2E_VAR
-$RUNIX start envapp --cmd 'echo "V=[$RX_E2E_VAR]"; while true; do sleep 1; done' >/dev/null
+$SM2 start envapp --cmd 'echo "V=[$RX_E2E_VAR]"; while true; do sleep 1; done' >/dev/null
 sleep 1
 export RX_E2E_VAR=present
-$RUNIX restart envapp --update-env >/dev/null
+$SM2 restart envapp --update-env >/dev/null
 sleep 1
-have "update-env injects new var" "$(tail -1 "$RUNIX_HOME/logs/envapp.stdout.log")" "V=[present]"
-have "reload alias works" "$($RUNIX reload envapp 2>&1)" "restarted"
+have "update-env injects new var" "$(tail -1 "$SM2_HOME/logs/envapp.stdout.log")" "V=[present]"
+have "reload alias works" "$($SM2 reload envapp 2>&1)" "restarted"
 unset RX_E2E_VAR
 
 section "flush logs"
-have "flush reports files" "$($RUNIX flush api)" "flushed"
+have "flush reports files" "$($SM2 flush api)" "flushed"
 
 section "output: color & box"
 ESC=$(printf '\033')
-have "box renders borders (forced rich)" "$(RUNIX_FORCE_COLOR=1 $RUNIX status --no-color)" "┌"
-have "box shows column header" "$(RUNIX_FORCE_COLOR=1 $RUNIX status --no-color)" "STATE"
-if RUNIX_FORCE_COLOR=1 $RUNIX status | grep -qF "${ESC}["; then ok "color emitted when forced"; else no "color not emitted when forced"; fi
-if RUNIX_FORCE_COLOR=1 $RUNIX status --no-color | grep -qF "${ESC}["; then no "--no-color still emitted escapes"; else ok "--no-color suppresses escapes"; fi
-if $RUNIX status --plain | grep -qF "┌"; then no "--plain still drew a box"; else ok "--plain suppresses box"; fi
+have "box renders borders (forced rich)" "$(SM2_FORCE_COLOR=1 $SM2 status --no-color)" "┌"
+have "box shows column header" "$(SM2_FORCE_COLOR=1 $SM2 status --no-color)" "STATE"
+if SM2_FORCE_COLOR=1 $SM2 status | grep -qF "${ESC}["; then ok "color emitted when forced"; else no "color not emitted when forced"; fi
+if SM2_FORCE_COLOR=1 $SM2 status --no-color | grep -qF "${ESC}["; then no "--no-color still emitted escapes"; else ok "--no-color suppresses escapes"; fi
+if $SM2 status --plain | grep -qF "┌"; then no "--plain still drew a box"; else ok "--plain suppresses box"; fi
 
 section "save / resurrect (survives agent kill)"
-$RUNIX save >/dev/null
-$RUNIX kill >/dev/null
+$SM2 save >/dev/null
+$SM2 kill >/dev/null
 sleep 1
-have "dump file written" "$(cat "$RUNIX_HOME/dump.json")" '"name"'
-RES="$($RUNIX resurrect)"
+have "dump file written" "$(cat "$SM2_HOME/dump.json")" '"name"'
+RES="$($SM2 resurrect)"
 have "resurrect restores apps" "$RES" "RUNNING"
 
 section "startup / unstartup (isolated HOME)"
 FAKE="$WORK/fakehome"; mkdir -p "$FAKE"
 OS="$(uname -s)"
-if [ "$OS" = "Darwin" ]; then UNIT="$FAKE/Library/LaunchAgents/com.runix.agent.plist"; else UNIT="$FAKE/.config/systemd/user/runix.service"; fi
-have "startup reports enable steps" "$(HOME="$FAKE" $RUNIX startup)" "enable it with"
+if [ "$OS" = "Darwin" ]; then UNIT="$FAKE/Library/LaunchAgents/com.sm2.agent.plist"; else UNIT="$FAKE/.config/systemd/user/sm2.service"; fi
+have "startup reports enable steps" "$(HOME="$FAKE" $SM2 startup)" "enable it with"
 if [ -f "$UNIT" ]; then ok "boot unit file exists"; else no "boot unit file missing ($UNIT)"; fi
 have "boot unit invokes resurrect" "$(cat "$UNIT" 2>/dev/null)" "resurrect"
-HOME="$FAKE" $RUNIX unstartup >/dev/null
+HOME="$FAKE" $SM2 unstartup >/dev/null
 if [ ! -f "$UNIT" ]; then ok "unstartup removed the unit"; else no "unstartup left the unit behind"; fi
 
 # ---- summary ----

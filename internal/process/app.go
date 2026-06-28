@@ -13,9 +13,9 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/abdorizak/runix/internal/events"
-	"github.com/abdorizak/runix/internal/ipc"
-	"github.com/abdorizak/runix/internal/paths"
+	"github.com/abdorizak/sm2/internal/events"
+	"github.com/abdorizak/sm2/internal/ipc"
+	"github.com/abdorizak/sm2/internal/paths"
 )
 
 // Process states.
@@ -34,7 +34,7 @@ const (
 )
 
 // defaultWatchIgnore are always skipped by the file watcher.
-var defaultWatchIgnore = []string{".git", "node_modules", "__pycache__", ".runix"}
+var defaultWatchIgnore = []string{".git", "node_modules", "__pycache__", ".sm2"}
 
 // app is a single managed application. It is safe for concurrent use.
 type app struct {

@@ -9,10 +9,10 @@ var (
 )
 
 // setupOutput decides whether to emit ANSI colors and box-drawn tables. Rich
-// output needs an interactive terminal (or RUNIX_FORCE_COLOR, e.g. when piping
+// output needs an interactive terminal (or SM2_FORCE_COLOR, e.g. when piping
 // to a pager); color also honors --no-color and NO_COLOR.
 func setupOutput(noColor, plain bool) {
-	rich := isTTY(os.Stdout) || os.Getenv("RUNIX_FORCE_COLOR") != ""
+	rich := isTTY(os.Stdout) || os.Getenv("SM2_FORCE_COLOR") != ""
 	colorOn = rich && !noColor && os.Getenv("NO_COLOR") == ""
 	boxOn = rich && !plain
 }

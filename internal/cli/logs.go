@@ -10,7 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/abdorizak/runix/internal/paths"
+	"github.com/abdorizak/sm2/internal/paths"
 )
 
 func newLogsCmd() *cobra.Command {

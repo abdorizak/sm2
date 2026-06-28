@@ -1,4 +1,4 @@
-// Package events defines Runix lifecycle events and the sink they flow into.
+// Package events defines sm2 lifecycle events and the sink they flow into.
 package events
 
 import "time"

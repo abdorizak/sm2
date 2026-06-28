@@ -5,14 +5,14 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/abdorizak/runix/internal/agent"
-	"github.com/abdorizak/runix/internal/logger"
+	"github.com/abdorizak/sm2/internal/agent"
+	"github.com/abdorizak/sm2/internal/logger"
 )
 
 func newAgentCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:    "agent",
-		Short:  "Run the Runix agent daemon (normally auto-started)",
+		Short:  "Run the sm2 agent daemon (normally auto-started)",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			log := logger.New(os.Stderr, "agent")

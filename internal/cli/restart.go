@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/abdorizak/runix/internal/ipc"
+	"github.com/abdorizak/sm2/internal/ipc"
 )
 
 func newRestartCmd() *cobra.Command {
@@ -21,7 +21,7 @@ func newRestartCmd() *cobra.Command {
 		Long: "Restart the targeted app(s).\n\n" +
 			"With --update-env, the current shell environment is re-read and applied\n" +
 			"before relaunch (the app's explicit config env still takes precedence).\n" +
-			"`reload` is an alias; note Runix restarts the process — it is not a\n" +
+			"`reload` is an alias; note sm2 restarts the process — it is not a\n" +
 			"zero-downtime cluster reload.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

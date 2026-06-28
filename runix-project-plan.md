@@ -1,12 +1,12 @@
-# Runix - Universal Application Operations Agent
+# sm2 - Universal Application Operations Agent
 
 ## Vision
 
-Runix is a Go-based universal process management and automation agent.
+sm2 is a Go-based universal process management and automation agent.
 
 The goal is to create a modern alternative to PM2 and systemd that can manage any application regardless of programming language.
 
-Runix can run, monitor, restart, configure, deploy, and notify about applications.
+sm2 can run, monitor, restart, configure, deploy, and notify about applications.
 
 Supported applications:
 
@@ -23,25 +23,25 @@ Supported applications:
 
 # Architecture
 
-Runix has two main components.
+sm2 has two main components.
 
-## Runix CLI
+## sm2 CLI
 
 A command-line interface used by users.
 
 Examples:
 
 ```bash
-runix start api
-runix stop api
-runix restart api
-runix status
-runix logs api
-runix deploy api
-runix config show
+sm2 start api
+sm2 stop api
+sm2 restart api
+sm2 status
+sm2 logs api
+sm2 deploy api
+sm2 config show
 ```
 
-## Runix Agent
+## sm2 Agent
 
 A background daemon responsible for:
 
@@ -56,7 +56,7 @@ A background daemon responsible for:
 Architecture:
 
 ```
-                 Runix CLI
+                 sm2 CLI
 
                     |
                     |
@@ -65,7 +65,7 @@ Architecture:
                     |
                     |
 
-              Runix Agent
+              sm2 Agent
 
         +-----------+------------+
         |           |            |
@@ -86,11 +86,11 @@ Architecture:
 Run any command:
 
 ```bash
-runix start backend --cmd "./server"
+sm2 start backend --cmd "./server"
 
-runix start frontend --cmd "npm run start"
+sm2 start frontend --cmd "npm run start"
 
-runix start worker --cmd "python worker.py"
+sm2 start worker --cmd "python worker.py"
 ```
 
 Requirements:
@@ -119,7 +119,7 @@ RESTARTING
 Main configuration:
 
 ```
-runix.yaml
+sm2.yaml
 ```
 
 Example:
@@ -160,13 +160,13 @@ health:
 Commands:
 
 ```bash
-runix config init
+sm2 config init
 
-runix config show
+sm2 config show
 
-runix config validate
+sm2 config validate
 
-runix config reload
+sm2 config reload
 ```
 
 ---
@@ -176,15 +176,15 @@ runix config reload
 Commands:
 
 ```bash
-runix logs api
+sm2 logs api
 
-runix logs api --follow
+sm2 logs api --follow
 ```
 
 Storage:
 
 ```
-~/.runix/logs/
+~/.sm2/logs/
 
 api.stdout.log
 api.stderr.log
@@ -259,7 +259,7 @@ Future:
 Command:
 
 ```bash
-runix deploy api
+sm2 deploy api
 ```
 
 Workflow:
@@ -287,7 +287,7 @@ Developer Machine
 
        |
 
-    Runix CLI
+    sm2 CLI
 
        |
 
@@ -295,7 +295,7 @@ Developer Machine
 
        |
 
- Remote Runix Agent
+ Remote sm2 Agent
 
        |
 
@@ -362,11 +362,11 @@ Communication:
 # Project Structure
 
 ```
-runix/
+sm2/
 
 cmd/
 
-  runix/
+  sm2/
       main.go
 
   agent/
@@ -413,8 +413,8 @@ First create:
 
 First release:
 
-- Runix CLI
-- Runix daemon
+- sm2 CLI
+- sm2 daemon
 - Start/stop/restart apps
 - Process monitoring
 - YAML configuration
@@ -426,6 +426,6 @@ First release:
 
 # Long Term Vision
 
-Runix becomes:
+sm2 becomes:
 
 "A universal open-source application operations agent written in Go that combines the simplicity of PM2, reliability of systemd, and automation features of modern DevOps platforms."
