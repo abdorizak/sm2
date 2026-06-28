@@ -132,4 +132,4 @@ The landing page and documentation site live in a separate repository.
 
 ## License
 
-MIT
+[Apache-2.0](LICENSE) © abdorizak
