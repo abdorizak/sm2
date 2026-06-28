@@ -5,7 +5,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/abdorizak/sm2/main/install.sh | bash
 #
 # Env overrides:
-#   SM2_VERSION=v0.1.0-dev.1     install a specific release (default: latest)
+#   SM2_VERSION=v0.1.0-dev.2     install a specific release (default: latest)
 #   SM2_INSTALL_DIR=/usr/local/bin   where to put the binary
 #
 set -euo pipefail
