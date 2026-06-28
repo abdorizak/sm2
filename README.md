@@ -3,9 +3,14 @@
   <h1>sm2</h1>
   <p><strong>A universal application operations agent, written in Go.</strong></p>
   <p>Run and supervise apps in any language — the simplicity of PM2, the reliability of systemd.</p>
+  <p><a href="https://sm2.dev">sm2.dev</a></p>
 </div>
 
 ---
+
+> 🚧 **sm2 is in active development (pre-release).** It works and is tested, but
+> commands, flags and config may still change before a stable `v1.0.0`. Try it,
+> and please report anything rough.
 
 sm2 is a single Go binary that runs your applications, watches them, and brings
 them back when they die. It pairs a small CLI with a background agent that talks
@@ -13,9 +18,14 @@ over a local Unix socket — no daemon to configure, no runtime to install.
 
 ## Install
 
+Latest tagged dev build:
+
 ```sh
 go install github.com/abdorizak/sm2/cmd/sm2@latest
 ```
+
+> While in pre-release, `@latest` may not resolve until a stable tag exists — if
+> so, pin the dev tag: `go install github.com/abdorizak/sm2/cmd/sm2@v0.1.0-dev.1`.
 
 Make sure `$(go env GOPATH)/bin` is on your `PATH`. The command is `sm2`.
 
