@@ -21,3 +21,6 @@ vendor/
 
 # Release artifacts
 /dist/
+
+# Local release helper (not committed)
+/release.sh
