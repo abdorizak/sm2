@@ -18,3 +18,6 @@ vendor/
 
 # The website lives in its own repository (web/.git)
 /web/
+
+# Release artifacts
+/dist/

@@ -5,7 +5,10 @@ PKG     := ./cmd/sm2
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0-dev")
 LDFLAGS := -X 'github.com/abdorizak/sm2/internal/cli.version=$(VERSION)'
 
-.PHONY: build install run test test-cli test-all vet fmt tidy clean help
+# Release targets (Unix only — sm2 uses process groups, signals & unix sockets).
+PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
+
+.PHONY: build install run test test-cli test-all vet fmt tidy clean dist help
 
 ## build: compile sm2 into ./bin
 build:
@@ -42,9 +45,25 @@ fmt:
 tidy:
 	go mod tidy
 
+## dist: cross-compile static release archives + checksums into ./dist
+dist:
+	@rm -rf dist && mkdir -p dist
+	@for p in $(PLATFORMS); do \
+		os=$${p%/*}; arch=$${p#*/}; \
+		name="sm2_$(VERSION)_$${os}_$${arch}"; \
+		echo "  $$name"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -ldflags "-s -w $(LDFLAGS)" -o dist/sm2 $(PKG) || exit 1; \
+		cp LICENSE README.md dist/; \
+		tar -C dist -czf "dist/$$name.tar.gz" sm2 LICENSE README.md; \
+		rm -f dist/sm2; \
+	done
+	@rm -f dist/LICENSE dist/README.md
+	@cd dist && shasum -a 256 *.tar.gz > SHA256SUMS
+	@echo "Done. Upload with: gh release upload $(VERSION) dist/*.tar.gz dist/SHA256SUMS"
+
 ## clean: remove build artifacts
 clean:
-	rm -rf bin
+	rm -rf bin dist
 
 ## help: list available targets
 help:
