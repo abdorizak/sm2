@@ -37,10 +37,13 @@ esac
 version="${SM2_VERSION:-}"
 if [ -z "$version" ]; then
   info "Resolving latest release…"
-  version=$(curl -fsSL "https://api.github.com/repos/$REPO/releases" \
-    | grep -m1 '"tag_name"' | cut -d'"' -f4)
+  # Fetch fully, then parse — piping curl into `grep -m1` closes the pipe early
+  # and trips pipefail with "curl: (23)".
+  releases=$(curl -fsSL "https://api.github.com/repos/$REPO/releases") \
+    || err "could not query GitHub releases (set SM2_VERSION=… to skip)"
+  version=$(printf '%s\n' "$releases" | awk -F'"' '/"tag_name":/ && v==""{v=$4} END{print v}')
 fi
-[ -n "$version" ] || err "could not determine version (try SM2_VERSION=…)"
+[ -n "$version" ] || err "could not determine latest version (set SM2_VERSION=…)"
 
 asset="${BINARY}_${version}_${os}_${arch}.tar.gz"
 base="https://github.com/$REPO/releases/download/$version"
