@@ -52,9 +52,23 @@ there is no separate daemon to run.
 |---|---|
 | `start` `stop` `restart` `delete` `reset` `signal` | lifecycle (target a name, `all`, or `--namespace`) |
 | `status` (`ls`/`ps`) `describe` `logs` `flush` `ping` | inspect |
-| `config` `save` `resurrect` `startup` `unstartup` `kill` | config & boot |
+| `config` `notify` `save` `resurrect` `startup` `unstartup` `kill` | config & boot |
 
 Run `sm2 <command> --help` for usage, or see the full reference in the docs site.
+
+### Notifications
+
+Get Discord pings on start/stop/crash/restart. Set it up **without a config file**
+(persists to `~/.sm2/notify.json`, survives restarts):
+
+```sh
+sm2 notify discord --webhook "https://discord.com/api/webhooks/…"
+sm2 notify test        # send a test message
+sm2 notify status
+sm2 notify discord --disable
+```
+
+Or declare `notifications.discord` in config and `sm2 config reload`. Last action wins.
 
 ## Configuration
 

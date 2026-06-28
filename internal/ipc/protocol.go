@@ -3,19 +3,28 @@ package ipc
 
 // Action names carried in a Request.
 const (
-	ActionPing      = "ping"
-	ActionStart     = "start"
-	ActionStop      = "stop"
-	ActionRestart   = "restart"
-	ActionStatus    = "status"
-	ActionReload    = "reload"
-	ActionDelete    = "delete"
-	ActionReset     = "reset"
-	ActionDescribe  = "describe"
-	ActionSignal    = "signal"
-	ActionSave      = "save"
-	ActionResurrect = "resurrect"
+	ActionPing       = "ping"
+	ActionStart      = "start"
+	ActionStop       = "stop"
+	ActionRestart    = "restart"
+	ActionStatus     = "status"
+	ActionReload     = "reload"
+	ActionDelete     = "delete"
+	ActionReset      = "reset"
+	ActionDescribe   = "describe"
+	ActionSignal     = "signal"
+	ActionSave       = "save"
+	ActionResurrect  = "resurrect"
+	ActionNotifySet  = "notify_set"
+	ActionNotifyGet  = "notify_get"
+	ActionNotifyTest = "notify_test"
 )
+
+// DiscordConfig is the Discord webhook setting carried over the wire.
+type DiscordConfig struct {
+	Enabled bool   `json:"enabled"`
+	Webhook string `json:"webhook"`
+}
 
 // Request is a single command sent from the CLI to the agent.
 type Request struct {
@@ -27,6 +36,8 @@ type Request struct {
 	ConfigPath string   `json:"config_path,omitempty"`
 	UpdateEnv  bool     `json:"update_env,omitempty"` // refresh the base env on restart
 	Env        []string `json:"env,omitempty"`        // caller's environment, for UpdateEnv
+
+	Discord *DiscordConfig `json:"discord,omitempty"` // for notify_set
 }
 
 // AppSpec describes an application the agent should manage.
@@ -55,10 +66,11 @@ type AppSpec struct {
 
 // Response is the agent's reply to a Request.
 type Response struct {
-	OK     bool        `json:"ok"`
-	Error  string      `json:"error,omitempty"`
-	Apps   []AppStatus `json:"apps,omitempty"`
-	Detail *AppDetail  `json:"detail,omitempty"`
+	OK      bool           `json:"ok"`
+	Error   string         `json:"error,omitempty"`
+	Apps    []AppStatus    `json:"apps,omitempty"`
+	Detail  *AppDetail     `json:"detail,omitempty"`
+	Discord *DiscordConfig `json:"discord,omitempty"` // for notify_get
 }
 
 // AppStatus is a point-in-time snapshot of one managed app.

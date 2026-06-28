@@ -51,6 +51,7 @@ func newRootCmd() *cobra.Command {
 		newFlushCmd(),
 		newSignalCmd(),
 		newConfigCmd(),
+		newNotifyCmd(),
 		newSaveCmd(),
 		newResurrectCmd(),
 		newStartupCmd(),

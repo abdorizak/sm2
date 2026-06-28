@@ -51,6 +51,38 @@ func (d *Discord) Configure(enabled bool, webhook string) {
 	}
 }
 
+// Config returns the current enabled flag and webhook.
+func (d *Discord) Config() (bool, string) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.enabled, d.webhook
+}
+
+// SendTest posts a test message synchronously and returns the result, so the
+// caller gets immediate feedback. It works as long as a webhook is set, even
+// if delivery is currently disabled.
+func (d *Discord) SendTest() error {
+	d.mu.RLock()
+	webhook := d.webhook
+	d.mu.RUnlock()
+	if webhook == "" {
+		return fmt.Errorf("no Discord webhook is configured")
+	}
+	payload, err := json.Marshal(map[string]string{"content": "✅ sm2 test notification"})
+	if err != nil {
+		return err
+	}
+	resp, err := d.client.Post(webhook, "application/json", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("webhook returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
 // Emit queues an event for delivery. It drops the event (with a log line)
 // rather than block if the queue is full.
 func (d *Discord) Emit(e events.Event) {

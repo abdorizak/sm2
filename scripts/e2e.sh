@@ -149,6 +149,13 @@ have "update-env injects new var" "$(tail -1 "$SM2_HOME/logs/envapp.stdout.log")
 have "reload alias works" "$($SM2 reload envapp 2>&1)" "restarted"
 unset RX_E2E_VAR
 
+section "notify (Discord, no real webhook)"
+have "notify status starts unconfigured" "$($SM2 notify status 2>&1)" "not configured"
+have "notify discord enables" "$($SM2 notify discord --webhook 'http://127.0.0.1:9/x/secrettoken' 2>&1)" "enabled"
+have "notify status shows enabled" "$($SM2 notify status 2>&1)" "enabled"
+have "webhook is masked" "$($SM2 notify status 2>&1)" "…"
+have "notify disable works" "$($SM2 notify discord --disable 2>&1)" "disabled"
+
 section "flush logs"
 have "flush reports files" "$($SM2 flush api)" "flushed"
 

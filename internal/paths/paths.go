@@ -30,6 +30,9 @@ func PidFile() string { return filepath.Join(Root(), "agent.pid") }
 // Dump is where `sm2 save` persists the managed process list.
 func Dump() string { return filepath.Join(Root(), "dump.json") }
 
+// NotifyFile persists notification settings set via `sm2 notify`.
+func NotifyFile() string { return filepath.Join(Root(), "notify.json") }
+
 // AgentLog is where the daemon's own diagnostic log is written when detached.
 func AgentLog() string { return filepath.Join(LogDir(), "agent.log") }
 

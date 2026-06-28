@@ -66,6 +66,9 @@ func Run(logger zerolog.Logger) error {
 	if path := config.ResolvePath(""); path != "" {
 		s.loadConfig(path)
 	}
+	// Apply notification settings saved via `sm2 notify` (after config so an
+	// explicit CLI setting wins on startup).
+	s.loadNotify()
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -174,6 +177,27 @@ func (s *Server) dispatch(req ipc.Request) ipc.Response {
 		}
 		return ipc.Response{OK: true, Apps: s.mgr.Status()}
 
+	case ipc.ActionNotifySet:
+		if req.Discord == nil {
+			return ipc.Response{Error: "missing discord config"}
+		}
+		s.notifier.Configure(req.Discord.Enabled, req.Discord.Webhook)
+		if err := s.saveNotify(*req.Discord); err != nil {
+			return ipc.Response{Error: err.Error()}
+		}
+		en, wh := s.notifier.Config()
+		return ipc.Response{OK: true, Discord: &ipc.DiscordConfig{Enabled: en, Webhook: wh}}
+
+	case ipc.ActionNotifyGet:
+		en, wh := s.notifier.Config()
+		return ipc.Response{OK: true, Discord: &ipc.DiscordConfig{Enabled: en, Webhook: wh}}
+
+	case ipc.ActionNotifyTest:
+		if err := s.notifier.SendTest(); err != nil {
+			return ipc.Response{Error: err.Error()}
+		}
+		return ipc.Response{OK: true}
+
 	case ipc.ActionReload:
 		if req.ConfigPath == "" {
 			return ipc.Response{Error: "no config file found"}
@@ -241,6 +265,30 @@ func (s *Server) resurrect() error {
 	}
 	s.logger.Info().Int("apps", len(specs)).Msg("resurrected process list")
 	return nil
+}
+
+// saveNotify persists notification settings (0600 — contains a webhook secret).
+func (s *Server) saveNotify(dc ipc.DiscordConfig) error {
+	data, err := json.MarshalIndent(dc, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(paths.NotifyFile(), data, 0o600)
+}
+
+// loadNotify applies persisted notification settings, if any, on startup.
+func (s *Server) loadNotify() {
+	data, err := os.ReadFile(paths.NotifyFile())
+	if err != nil {
+		return
+	}
+	var dc ipc.DiscordConfig
+	if err := json.Unmarshal(data, &dc); err != nil {
+		s.logger.Warn().Err(err).Msg("could not parse notify file")
+		return
+	}
+	s.notifier.Configure(dc.Enabled, dc.Webhook)
+	s.logger.Info().Bool("enabled", dc.Enabled).Msg("applied saved notification settings")
 }
 
 // parseSignal converts a signal name (with or without SIG prefix) or number
