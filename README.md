@@ -18,16 +18,28 @@ over a local Unix socket — no daemon to configure, no runtime to install.
 
 ## Install
 
-Latest tagged dev build:
+**Quick install** (Linux & macOS, no Go required):
 
 ```sh
-go install github.com/abdorizak/sm2/cmd/sm2@latest
+curl -fsSL https://raw.githubusercontent.com/abdorizak/sm2/main/install.sh | bash
 ```
 
-> While in pre-release, `@latest` may not resolve until a stable tag exists — if
-> so, pin the dev tag: `go install github.com/abdorizak/sm2/cmd/sm2@v0.1.0-dev.1`.
+It downloads the prebuilt binary for your OS/architecture, verifies its checksum,
+and installs it to `/usr/local/bin`. The command is `sm2`.
 
-Make sure `$(go env GOPATH)/bin` is on your `PATH`. The command is `sm2`.
+<details>
+<summary>Other ways to install</summary>
+
+**With Go:**
+```sh
+go install github.com/abdorizak/sm2/cmd/sm2@v0.1.0-dev.1
+```
+
+**Manual download:** grab the archive for your platform from the
+[releases page](https://github.com/abdorizak/sm2/releases) and extract it.
+
+Windows is not supported (sm2 uses Unix process groups, signals and sockets).
+</details>
 
 ## Quick start
 
