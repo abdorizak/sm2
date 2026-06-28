@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -36,8 +37,37 @@ const (
 // defaultWatchIgnore are always skipped by the file watcher.
 var defaultWatchIgnore = []string{".git", "node_modules", "__pycache__", ".sm2"}
 
+// agentUser is the user the agent (and therefore every managed process) runs as.
+var agentUser = resolveUser()
+
+func resolveUser() string {
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		return u.Username
+	}
+	if v := os.Getenv("USER"); v != "" {
+		return v
+	}
+	return "-"
+}
+
+// shortDuration renders a duration the PM2 way: 30s, 5m, 3h, 12D.
+func shortDuration(d time.Duration) string {
+	s := int64(d.Seconds())
+	switch {
+	case s < 60:
+		return fmt.Sprintf("%ds", s)
+	case s < 3600:
+		return fmt.Sprintf("%dm", s/60)
+	case s < 86400:
+		return fmt.Sprintf("%dh", s/3600)
+	default:
+		return fmt.Sprintf("%dD", s/86400)
+	}
+}
+
 // app is a single managed application. It is safe for concurrent use.
 type app struct {
+	id     int
 	spec   ipc.AppSpec
 	logger zerolog.Logger
 	sink   events.Sink
@@ -363,15 +393,18 @@ func (a *app) signal(sig syscall.Signal) error {
 func (a *app) status() ipc.AppStatus {
 	a.mu.Lock()
 	st := ipc.AppStatus{
+		ID:        a.id,
 		Name:      a.spec.Name,
 		Namespace: a.spec.Namespace,
 		State:     a.state,
 		PID:       a.pid,
 		Restarts:  a.restarts,
+		User:      agentUser,
+		Watching:  a.spec.Watch,
 		Command:   a.spec.Command,
 	}
 	if a.state == StateRunning {
-		st.Uptime = time.Since(a.startedAt).Truncate(time.Second).String()
+		st.Uptime = shortDuration(time.Since(a.startedAt))
 	}
 	pid := a.pid
 	running := a.state == StateRunning

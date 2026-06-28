@@ -75,6 +75,7 @@ type Response struct {
 
 // AppStatus is a point-in-time snapshot of one managed app.
 type AppStatus struct {
+	ID          int     `json:"id"`
 	Name        string  `json:"name"`
 	Namespace   string  `json:"namespace,omitempty"`
 	State       string  `json:"state"`
@@ -83,6 +84,8 @@ type AppStatus struct {
 	Uptime      string  `json:"uptime"`
 	CPUPercent  float64 `json:"cpu_percent"`
 	MemoryBytes int64   `json:"memory_bytes"`
+	User        string  `json:"user,omitempty"`
+	Watching    bool    `json:"watching"`
 	Command     string  `json:"command"`
 }
 

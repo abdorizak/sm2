@@ -20,8 +20,9 @@ type Manager struct {
 	logger zerolog.Logger
 	sink   events.Sink
 
-	mu   sync.Mutex
-	apps map[string]*app
+	mu     sync.Mutex
+	apps   map[string]*app
+	nextID int
 }
 
 // NewManager returns an empty process manager. Lifecycle events are emitted to
@@ -53,10 +54,15 @@ func (m *Manager) Start(spec ipc.AppSpec) error {
 		m.mu.Unlock()
 		return fmt.Errorf("app %q is already running", spec.Name)
 	}
+	id := m.nextID
 	if old, ok := m.apps[spec.Name]; ok {
+		id = old.id // keep the same id when replacing an app by name
 		old.close() // replace any stopped instance and its monitors
+	} else {
+		m.nextID++
 	}
 	a := newApp(spec, m.logger, m.sink)
+	a.id = id
 	m.apps[spec.Name] = a
 	m.mu.Unlock()
 

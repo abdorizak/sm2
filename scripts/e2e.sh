@@ -162,7 +162,7 @@ have "flush reports files" "$($SM2 flush api)" "flushed"
 section "output: color & box"
 ESC=$(printf '\033')
 have "box renders borders (forced rich)" "$(SM2_FORCE_COLOR=1 $SM2 status --no-color)" "┌"
-have "box shows column header" "$(SM2_FORCE_COLOR=1 $SM2 status --no-color)" "STATE"
+have "box shows column header" "$(SM2_FORCE_COLOR=1 $SM2 status --no-color)" "STATUS"
 if SM2_FORCE_COLOR=1 $SM2 status | grep -qF "${ESC}["; then ok "color emitted when forced"; else no "color not emitted when forced"; fi
 if SM2_FORCE_COLOR=1 $SM2 status --no-color | grep -qF "${ESC}["; then no "--no-color still emitted escapes"; else ok "--no-color suppresses escapes"; fi
 if $SM2 status --plain | grep -qF "┌"; then no "--plain still drew a box"; else ok "--plain suppresses box"; fi

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -71,43 +72,74 @@ func statusRow(a ipc.AppStatus) (pid, cpu, mem, restarts, uptime string) {
 	return
 }
 
+// statusCells returns the full PM2-style column values for one app.
+func statusCells(a ipc.AppStatus) []string {
+	pid, cpu, mem, restarts, uptime := statusRow(a)
+	ns := a.Namespace
+	if ns == "" {
+		ns = "default"
+	}
+	user := a.User
+	if user == "" {
+		user = "-"
+	}
+	watching := "disabled"
+	if a.Watching {
+		watching = "enabled"
+	}
+	return []string{
+		fmt.Sprintf("%d", a.ID), a.Name, ns, "N/A", "fork",
+		pid, uptime, restarts, a.State, cpu, mem, user, watching,
+	}
+}
+
+var statusHeaders = []string{
+	"id", "name", "namespace", "version", "mode",
+	"pid", "uptime", "↺", "status", "cpu", "mem", "user", "watching",
+}
+
+// statusDecorate colors cells by column for the box view.
+func statusDecorate(col int, raw string) string {
+	switch col {
+	case 1: // name
+		return cyan(raw)
+	case 7: // restarts
+		if raw != "0" {
+			return yellow(raw)
+		}
+		return dim(raw)
+	case 8: // status
+		return colorState(raw)
+	case 12: // watching
+		if raw == "enabled" {
+			return green(raw)
+		}
+		return dim(raw)
+	default:
+		return raw
+	}
+}
+
 func statusBox(apps []ipc.AppStatus) string {
-	cols := []column{
-		{"NAME", false}, {"STATE", false}, {"PID", true}, {"CPU", true},
-		{"MEM", true}, {"↺", true}, {"UPTIME", true}, {"COMMAND", false},
+	right := map[int]bool{0: true, 5: true, 6: true, 7: true, 9: true, 10: true}
+	cols := make([]column, len(statusHeaders))
+	for i, h := range statusHeaders {
+		cols[i] = column{strings.ToUpper(h), right[i]}
 	}
 	rows := make([][]string, 0, len(apps))
 	for _, a := range apps {
-		pid, cpu, mem, restarts, uptime := statusRow(a)
-		rows = append(rows, []string{
-			a.Name, a.State, pid, cpu, mem, restarts, uptime, truncate(a.Command, 36),
-		})
+		rows = append(rows, statusCells(a))
 	}
-	decorate := func(col int, raw string) string {
-		switch col {
-		case 1: // STATE
-			return colorState(raw)
-		case 0: // NAME
-			return cyan(raw)
-		case 5: // restarts
-			if raw != "0" {
-				return yellow(raw)
-			}
-			return dim(raw)
-		default:
-			return raw
-		}
-	}
-	return renderBox(cols, rows, decorate)
+	return renderBox(cols, rows, statusDecorate)
 }
 
 func statusPlain(apps []ipc.AppStatus) {
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
-	fmt.Fprintln(w, "NAME\tSTATE\tPID\tCPU\tMEM\tRESTARTS\tUPTIME\tCOMMAND")
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, strings.Join(statusHeaders, "\t"))
 	for _, a := range apps {
-		pid, cpu, mem, restarts, uptime := statusRow(a)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			a.Name, colorState(a.State), pid, cpu, mem, restarts, uptime, a.Command)
+		cells := statusCells(a)
+		cells[8] = colorState(cells[8]) // status column
+		fmt.Fprintln(w, strings.Join(cells, "\t"))
 	}
 	w.Flush()
 }

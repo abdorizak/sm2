@@ -75,15 +75,3 @@ func renderBox(cols []column, rows [][]string, decorate func(col int, raw string
 }
 
 func runeLen(s string) int { return utf8.RuneCountInString(s) }
-
-// truncate shortens s to max runes, adding an ellipsis when cut.
-func truncate(s string, max int) string {
-	if runeLen(s) <= max {
-		return s
-	}
-	r := []rune(s)
-	if max <= 1 {
-		return string(r[:max])
-	}
-	return string(r[:max-1]) + "…"
-}
