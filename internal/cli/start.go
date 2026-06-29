@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -56,9 +58,19 @@ func newStartCmd() *cobra.Command {
 				return err
 			}
 
+			// Default the working directory to where the user ran sm2 (not the
+			// agent's cwd), and resolve a relative --dir against it. This makes
+			// `cd /opt/web && sm2 start web -- npm run start` just work.
 			workdir := dir
 			if cwd != "" {
 				workdir = cwd
+			}
+			if workdir == "" {
+				workdir, _ = os.Getwd()
+			} else if !filepath.IsAbs(workdir) {
+				if abs, err := filepath.Abs(workdir); err == nil {
+					workdir = abs
+				}
 			}
 
 			retries := maxRetries
@@ -124,7 +136,7 @@ func newStartCmd() *cobra.Command {
 
 	f := cmd.Flags()
 	f.StringVar(&command, "cmd", "", "shell command to run (optional; prefer passing the command after --)")
-	f.StringVar(&dir, "dir", "", "working directory")
+	f.StringVar(&dir, "dir", "", "working directory (default: current directory)")
 	f.StringVar(&cwd, "cwd", "", "working directory (alias of --dir)")
 	f.StringArrayVarP(&envFlags, "env", "e", nil, "environment variable KEY=VALUE (repeatable)")
 	f.StringVar(&restart, "restart", "on-failure", "restart policy: always | on-failure | never")
