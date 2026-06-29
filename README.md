@@ -2,7 +2,7 @@
   <img src="assets/sm2-logo.svg" width="92" alt="sm2" />
   <h1>sm2</h1>
   <p><strong>A universal application operations agent, written in Go.</strong></p>
-  <p>Run and supervise apps in any language — the simplicity of PM2, the reliability of systemd.</p>
+  <p>Run and supervise apps in any language — simple to use, reliable, and a single binary.</p>
   <p><a href="https://sm2.dev">sm2.dev</a></p>
 </div>
 
@@ -44,11 +44,15 @@ Windows is not supported (sm2 uses Unix process groups, signals and sockets).
 ## Quick start
 
 ```sh
-sm2 start api --cmd "./api" --restart always   # run & supervise
+sm2 start web -- npm run start                  # run & supervise (command after --)
+sm2 start api --restart always -- ./api         # flags go before --
 sm2 status                                      # boxed, colored table
-sm2 logs api --follow                           # tail output
+sm2 logs web --follow                           # tail output
 sm2 save                                        # snapshot for reboot survival
 ```
+
+> Pass the command **positionally after `--`**. sm2's own flags (`--restart`, `-e`, …)
+> go **before** `--`. `--cmd "<shell>"` is an optional escape hatch for one-liners with pipes/`&&`.
 
 `sm2` is a single binary — it starts and talks to a background agent for you;
 there is no separate daemon to run.
@@ -128,7 +132,7 @@ An app's environment is a **base** it inherits plus **per-app overrides**
   after you `export` something new.
 
 `sm2 reload` is an alias of `restart`. sm2 restarts the process (a brief blip) —
-it is not a zero-downtime cluster reload like PM2's.
+it is not a zero-downtime rolling reload.
 
 ## Development
 

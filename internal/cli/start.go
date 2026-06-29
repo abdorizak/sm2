@@ -34,15 +34,22 @@ func newStartCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "start <name>",
+		Use:   "start <name> [-- <command> [args...]]",
 		Short: "Start and supervise an application",
-		Args:  cobra.ExactArgs(1),
-		Example: "  sm2 start api --cmd \"./api\"\n" +
-			"  sm2 start web --cmd \"npm run start\" --restart always -i 2\n" +
-			"  sm2 start job --cmd \"./job\" --cron-restart \"0 3 * * *\"",
+		Args:  cobra.MinimumNArgs(1),
+		Example: "  sm2 start web -- npm run start\n" +
+			"  sm2 start api -- ./api --port 8080 --restart always\n" +
+			"  sm2 start dash -- yarn start -i 2\n" +
+			"  sm2 start job --cmd \"./job && echo done\"   # --cmd for shell one-liners",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// The command is passed positionally after the name
+			// (`sm2 start web -- npm run start`); --cmd is an optional escape
+			// hatch for shell one-liners with pipes or &&.
+			if command == "" && len(args) > 1 {
+				command = strings.Join(args[1:], " ")
+			}
 			if command == "" {
-				return fmt.Errorf("--cmd is required")
+				return fmt.Errorf("provide a command: 'sm2 start <name> -- <cmd> [args]' or --cmd \"<cmd>\"")
 			}
 			env, err := parseEnv(envFlags)
 			if err != nil {
@@ -116,7 +123,7 @@ func newStartCmd() *cobra.Command {
 	}
 
 	f := cmd.Flags()
-	f.StringVar(&command, "cmd", "", "command to run (required)")
+	f.StringVar(&command, "cmd", "", "shell command to run (optional; prefer passing the command after --)")
 	f.StringVar(&dir, "dir", "", "working directory")
 	f.StringVar(&cwd, "cwd", "", "working directory (alias of --dir)")
 	f.StringArrayVarP(&envFlags, "env", "e", nil, "environment variable KEY=VALUE (repeatable)")

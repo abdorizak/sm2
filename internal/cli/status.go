@@ -72,7 +72,7 @@ func statusRow(a ipc.AppStatus) (pid, cpu, mem, restarts, uptime string) {
 	return
 }
 
-// statusCells returns the full PM2-style column values for one app.
+// statusCells returns the full set of column values for one app.
 func statusCells(a ipc.AppStatus) []string {
 	pid, cpu, mem, restarts, uptime := statusRow(a)
 	ns := a.Namespace

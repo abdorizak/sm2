@@ -50,7 +50,7 @@ func resolveUser() string {
 	return "-"
 }
 
-// shortDuration renders a duration the PM2 way: 30s, 5m, 3h, 12D.
+// shortDuration renders a duration compactly: 30s, 5m, 3h, 12D.
 func shortDuration(d time.Duration) string {
 	s := int64(d.Seconds())
 	switch {
