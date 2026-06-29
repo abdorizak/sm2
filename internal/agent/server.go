@@ -66,6 +66,11 @@ func Run(logger zerolog.Logger) error {
 	if path := config.ResolvePath(""); path != "" {
 		s.loadConfig(path)
 	}
+	// Self-healing: bring back the apps the agent was running before it last
+	// stopped/crashed, then start auto-saving on every change.
+	s.autoResurrect()
+	s.mgr.SetOnChange(s.autoSave)
+
 	// Apply notification settings saved via `sm2 notify` (after config so an
 	// explicit CLI setting wins on startup).
 	s.loadNotify()
@@ -289,6 +294,35 @@ func (s *Server) loadNotify() {
 	}
 	s.notifier.Configure(dc.Enabled, dc.Webhook)
 	s.logger.Info().Bool("enabled", dc.Enabled).Msg("applied saved notification settings")
+}
+
+// autoSave persists the live (non-stopped) process list so the agent can
+// recover it after a crash or reboot. Called on every change to the set.
+func (s *Server) autoSave() {
+	data, err := json.MarshalIndent(s.mgr.ActiveSpecs(), "", "  ")
+	if err != nil {
+		return
+	}
+	if err := os.WriteFile(paths.State(), data, 0o644); err != nil {
+		s.logger.Warn().Err(err).Msg("auto-save failed")
+	}
+}
+
+// autoResurrect restarts apps recorded in the state file on agent startup.
+func (s *Server) autoResurrect() {
+	data, err := os.ReadFile(paths.State())
+	if err != nil {
+		return
+	}
+	var specs []ipc.AppSpec
+	if err := json.Unmarshal(data, &specs); err != nil || len(specs) == 0 {
+		return
+	}
+	if err := s.mgr.StartMany(specs); err != nil {
+		s.logger.Warn().Err(err).Msg("auto-resurrect reported errors")
+	} else {
+		s.logger.Info().Int("apps", len(specs)).Msg("auto-resurrected from saved state")
+	}
 }
 
 // parseSignal converts a signal name (with or without SIG prefix) or number

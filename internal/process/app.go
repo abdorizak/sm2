@@ -441,6 +441,14 @@ func (a *app) running() bool {
 	}
 }
 
+// active reports whether the app should be running — true unless it was
+// deliberately stopped. Used for auto-save (a stopped app is not resurrected).
+func (a *app) active() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.state != StateStopped
+}
+
 // ---- monitors ----
 
 // monitorMemory restarts the app when its resident memory exceeds the limit.

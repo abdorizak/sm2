@@ -20,9 +20,35 @@ type Manager struct {
 	logger zerolog.Logger
 	sink   events.Sink
 
-	mu     sync.Mutex
-	apps   map[string]*app
-	nextID int
+	mu       sync.Mutex
+	apps     map[string]*app
+	nextID   int
+	onChange func() // called (without the lock) after the process set changes
+}
+
+// SetOnChange registers a callback invoked after the managed set changes
+// (start/stop/delete/reconcile). Used by the agent to auto-save live state.
+func (m *Manager) SetOnChange(fn func()) { m.onChange = fn }
+
+func (m *Manager) changed() {
+	if m.onChange != nil {
+		m.onChange()
+	}
+}
+
+// ActiveSpecs returns the specs of apps that are not deliberately stopped —
+// i.e. what should be running. Used for auto-save / auto-resurrect.
+func (m *Manager) ActiveSpecs() []ipc.AppSpec {
+	m.mu.Lock()
+	out := make([]ipc.AppSpec, 0, len(m.apps))
+	for _, a := range m.apps {
+		if a.active() {
+			out = append(out, a.spec)
+		}
+	}
+	m.mu.Unlock()
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 // NewManager returns an empty process manager. Lifecycle events are emitted to
@@ -66,10 +92,12 @@ func (m *Manager) Start(spec ipc.AppSpec) error {
 	m.apps[spec.Name] = a
 	m.mu.Unlock()
 
-	if spec.NoAutostart {
-		return nil
+	var startErr error
+	if !spec.NoAutostart {
+		startErr = a.start()
 	}
-	return a.start()
+	m.changed()
+	return startErr
 }
 
 // Stop terminates the targeted application(s).
@@ -81,6 +109,7 @@ func (m *Manager) Stop(name, namespace string) error {
 	for _, a := range apps {
 		a.stop()
 	}
+	m.changed()
 	return nil
 }
 
@@ -121,6 +150,7 @@ func (m *Manager) Delete(name, namespace string) error {
 		m.mu.Unlock()
 		m.logger.Info().Str("app", a.spec.Name).Msg("deleted")
 	}
+	m.changed()
 	return nil
 }
 
@@ -261,6 +291,7 @@ func (m *Manager) Reconcile(specs []ipc.AppSpec) error {
 		}
 	}
 
+	m.changed()
 	return errors.Join(errs...)
 }
 

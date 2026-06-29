@@ -57,6 +57,19 @@ sm2 save                                        # snapshot for reboot survival
 `sm2` is a single binary — it starts and talks to a background agent for you;
 there is no separate daemon to run.
 
+### Examples
+
+```sh
+sm2 start abdorizak.dev --restart always -- npm run start
+sm2 start billing-api -i 3 -- ./billing-server
+sm2 start email-worker --restart on-failure -- python worker.py
+sm2 start cache -- redis-server --port 6380
+sm2 start nightly-report --cron-restart "0 3 * * *" -- ./report.sh
+sm2 start landing --watch --dir /srv/landing -- npm run dev
+sm2 start metrics --max-memory-restart 300M --namespace infra -- ./metrics
+sm2 start bot -e TOKEN=xoxb-… -- node telegram-bot.js
+```
+
 ## Features
 
 - **Universal process manager** — Go, Node, Python, Rust, shell, any executable.
@@ -68,7 +81,9 @@ there is no separate daemon to run.
   reconciles the running set (start new, stop removed, restart changed).
 - **Restart triggers** — `--max-memory-restart`, `--watch` (file changes),
   `--cron-restart` (schedule).
-- **Reboot survival** — `save` / `resurrect` / `startup` (launchd & systemd).
+- **Reboot survival & self-healing** — the agent auto-saves its live process
+  list and resurrects it if it restarts; `save` / `resurrect` / `startup`
+  (launchd & systemd) for boot.
 - **Notifications** — Discord webhooks on start/stop/crash/restart.
 - **Single binary** — auto-spawned agent, zero external dependencies.
 

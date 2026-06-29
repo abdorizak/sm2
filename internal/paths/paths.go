@@ -33,6 +33,10 @@ func Dump() string { return filepath.Join(Root(), "dump.json") }
 // NotifyFile persists notification settings set via `sm2 notify`.
 func NotifyFile() string { return filepath.Join(Root(), "notify.json") }
 
+// State is the agent's auto-saved live process list (for self-healing across
+// agent restarts). Distinct from Dump (the explicit `sm2 save`).
+func State() string { return filepath.Join(Root(), "state.json") }
+
 // AgentLog is where the daemon's own diagnostic log is written when detached.
 func AgentLog() string { return filepath.Join(LogDir(), "agent.log") }
 
