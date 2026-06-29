@@ -96,6 +96,10 @@ sm2 notify discord --disable
 
 Or declare `notifications.discord` in config and `sm2 config reload`. Last action wins.
 
+Messages are rich, color-coded embeds (app · event · host · details), and delivery is
+**reliable**: sm2 honors Discord's rate limit (`Retry-After` on 429) and retries transient
+failures with backoff, so important events aren't silently dropped.
+
 ## Configuration
 
 Describe your stack in `sm2.yaml` **or** `sm2.toml` — sm2 picks the parser

@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -15,9 +17,17 @@ import (
 	"github.com/abdorizak/sm2/internal/events"
 )
 
+// hostname labels notifications with the machine they came from.
+var hostname = func() string {
+	if h, err := os.Hostname(); err == nil && h != "" {
+		return h
+	}
+	return "unknown"
+}()
+
 // Discord posts events to a Discord webhook. It is an events.Sink whose Emit
 // never blocks the caller: events are queued and delivered by a worker
-// goroutine. It is safe to reconfigure at runtime.
+// goroutine that retries on failure. It is safe to reconfigure at runtime.
 type Discord struct {
 	logger zerolog.Logger
 	client *http.Client
@@ -33,8 +43,8 @@ type Discord struct {
 func NewDiscord(logger zerolog.Logger) *Discord {
 	d := &Discord{
 		logger: logger.With().Str("notifier", "discord").Logger(),
-		client: &http.Client{Timeout: 10 * time.Second},
-		ch:     make(chan events.Event, 100),
+		client: &http.Client{Timeout: 15 * time.Second},
+		ch:     make(chan events.Event, 256),
 	}
 	go d.loop()
 	return d
@@ -58,9 +68,8 @@ func (d *Discord) Config() (bool, string) {
 	return d.enabled, d.webhook
 }
 
-// SendTest posts a test message synchronously and returns the result, so the
-// caller gets immediate feedback. It works as long as a webhook is set, even
-// if delivery is currently disabled.
+// SendTest posts a test message synchronously (with the same reliable delivery)
+// and returns the result. It works as long as a webhook is set.
 func (d *Discord) SendTest() error {
 	d.mu.RLock()
 	webhook := d.webhook
@@ -68,23 +77,20 @@ func (d *Discord) SendTest() error {
 	if webhook == "" {
 		return fmt.Errorf("no Discord webhook is configured")
 	}
-	payload, err := json.Marshal(map[string]string{"content": "✅ sm2 test notification"})
-	if err != nil {
-		return err
-	}
-	resp, err := d.client.Post(webhook, "application/json", bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("webhook returned status %d", resp.StatusCode)
-	}
-	return nil
+	payload, _ := json.Marshal(message{
+		Username: "sm2",
+		Embeds: []embed{{
+			Title:     "✅ sm2 test notification",
+			Color:     colorFor(events.AppStarted),
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+			Footer:    &footer{Text: "sm2 · " + hostname},
+		}},
+	})
+	return d.post(webhook, payload)
 }
 
-// Emit queues an event for delivery. It drops the event (with a log line)
-// rather than block if the queue is full.
+// Emit queues an event for delivery. It never blocks; if the (large) queue is
+// somehow full it drops the event with a warning rather than stall supervision.
 func (d *Discord) Emit(e events.Event) {
 	d.mu.RLock()
 	enabled := d.enabled
@@ -112,38 +118,157 @@ func (d *Discord) send(e events.Event) {
 	if webhook == "" {
 		return
 	}
-
-	payload, err := json.Marshal(map[string]string{"content": format(e)})
+	payload, err := json.Marshal(eventMessage(e))
 	if err != nil {
 		d.logger.Error().Err(err).Msg("marshal payload")
 		return
 	}
-
-	resp, err := d.client.Post(webhook, "application/json", bytes.NewReader(payload))
-	if err != nil {
-		d.logger.Error().Err(err).Str("app", e.App).Msg("webhook post failed")
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		d.logger.Error().Int("status", resp.StatusCode).Str("app", e.App).Msg("webhook rejected event")
+	if err := d.post(webhook, payload); err != nil {
+		d.logger.Error().Err(err).Str("app", e.App).Str("event", string(e.Type)).
+			Msg("notification delivery failed after retries")
 	}
 }
 
-// format renders an event as a Discord message.
-func format(e events.Event) string {
-	icon := map[events.Type]string{
-		events.AppStarted:   "✅",
-		events.AppStopped:   "🛑",
-		events.AppCrashed:   "❌",
-		events.AppRestarted: "🔄",
-	}[e.Type]
+// post delivers a payload reliably: it honors Discord's 429 Retry-After,
+// retries transient (network / 5xx) failures with capped backoff, and does not
+// retry permanent 4xx errors (a bad webhook or payload).
+func (d *Discord) post(webhook string, payload []byte) error {
+	const maxAttempts = 4
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		resp, err := d.client.Post(webhook, "application/json", bytes.NewReader(payload))
+		if err != nil {
+			lastErr = err
+			if attempt < maxAttempts {
+				time.Sleep(backoff(attempt))
+				continue
+			}
+			break
+		}
+		status := resp.StatusCode
+		wait := retryAfter(resp)
+		resp.Body.Close()
 
-	msg := fmt.Sprintf("%s **%s** — %s", icon, e.App, humanType(e.Type))
-	if e.Message != "" {
-		msg += ": " + e.Message
+		switch {
+		case status < 300:
+			return nil
+		case status == 429: // rate limited — wait exactly as Discord asks
+			lastErr = fmt.Errorf("rate limited (429)")
+			if attempt < maxAttempts {
+				if wait <= 0 {
+					wait = backoff(attempt)
+				}
+				time.Sleep(wait)
+				continue
+			}
+		case status >= 500: // transient server error — retry
+			lastErr = fmt.Errorf("discord server error %d", status)
+			if attempt < maxAttempts {
+				time.Sleep(backoff(attempt))
+				continue
+			}
+		default: // 4xx — permanent (bad webhook/payload), do not retry
+			return fmt.Errorf("webhook rejected (status %d)", status)
+		}
 	}
-	return msg
+	return lastErr
+}
+
+// retryAfter reads Discord's Retry-After header (seconds, may be fractional).
+func retryAfter(resp *http.Response) time.Duration {
+	v := resp.Header.Get("Retry-After")
+	if v == "" {
+		return 0
+	}
+	secs, err := strconv.ParseFloat(v, 64)
+	if err != nil || secs < 0 {
+		return 0
+	}
+	return time.Duration(secs * float64(time.Second))
+}
+
+// backoff is capped exponential: 0.5s, 1s, 2s, 4s … max 8s.
+func backoff(attempt int) time.Duration {
+	d := 500 * time.Millisecond * time.Duration(1<<uint(attempt-1))
+	if d > 8*time.Second {
+		d = 8 * time.Second
+	}
+	return d
+}
+
+// ---- message rendering (rich embeds) ----
+
+type message struct {
+	Username string  `json:"username,omitempty"`
+	Content  string  `json:"content,omitempty"`
+	Embeds   []embed `json:"embeds,omitempty"`
+}
+
+type embed struct {
+	Title     string  `json:"title"`
+	Color     int     `json:"color"`
+	Fields    []field `json:"fields,omitempty"`
+	Timestamp string  `json:"timestamp,omitempty"`
+	Footer    *footer `json:"footer,omitempty"`
+}
+
+type field struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Inline bool   `json:"inline,omitempty"`
+}
+
+type footer struct {
+	Text string `json:"text"`
+}
+
+func eventMessage(e events.Event) message {
+	emb := embed{
+		Title:     fmt.Sprintf("%s %s %s", icon(e.Type), e.App, humanType(e.Type)),
+		Color:     colorFor(e.Type),
+		Timestamp: e.Time.UTC().Format(time.RFC3339),
+		Footer:    &footer{Text: "sm2 · " + hostname},
+		Fields: []field{
+			{Name: "App", Value: e.App, Inline: true},
+			{Name: "Event", Value: humanType(e.Type), Inline: true},
+			{Name: "Host", Value: hostname, Inline: true},
+		},
+	}
+	if e.Message != "" {
+		emb.Fields = append(emb.Fields, field{Name: "Details", Value: e.Message})
+	}
+	return message{Username: "sm2", Embeds: []embed{emb}}
+}
+
+func icon(t events.Type) string {
+	switch t {
+	case events.AppStarted:
+		return "✅"
+	case events.AppStopped:
+		return "🛑"
+	case events.AppCrashed:
+		return "❌"
+	case events.AppRestarted:
+		return "🔄"
+	default:
+		return "•"
+	}
+}
+
+// colorFor returns the Discord embed color (decimal) for an event type.
+func colorFor(t events.Type) int {
+	switch t {
+	case events.AppStarted:
+		return 0x57F287 // green
+	case events.AppRestarted:
+		return 0xFEE75C // yellow
+	case events.AppStopped:
+		return 0x99AAB5 // grey
+	case events.AppCrashed:
+		return 0xED4245 // red
+	default:
+		return 0x5865F2 // blurple
+	}
 }
 
 func humanType(t events.Type) string {
