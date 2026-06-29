@@ -32,7 +32,7 @@ and installs it to `/usr/local/bin`. The command is `sm2`.
 
 **With Go:**
 ```sh
-go install github.com/abdorizak/sm2/cmd/sm2@v0.1.0-dev.2
+go install github.com/abdorizak/sm2/cmd/sm2@v0.1.0-dev.3
 ```
 
 **Manual download:** grab the archive for your platform from the
