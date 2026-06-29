@@ -93,7 +93,7 @@ sm2 start bot -e TOKEN=xoxb-… -- node telegram-bot.js
 |---|---|
 | `start` `stop` `restart` `delete` `reset` `signal` | lifecycle (target a name, `all`, or `--namespace`) |
 | `status` (`ls`/`ps`) `describe` `logs` `flush` `ping` | inspect |
-| `config` `notify` `save` `resurrect` `startup` `unstartup` `kill` | config & boot |
+| `config` `notify` `save` `resurrect` `startup` `unstartup` `kill` `update` | config & boot |
 
 Run `sm2 <command> --help` for usage, or see the full reference in the docs site.
 
