@@ -82,12 +82,27 @@ else
   dir="$HOME/.local/bin"
   mkdir -p "$dir"
   install -m 0755 "$tmp/$BINARY" "$dir/$BINARY"
-  info "Installed to $dir — add it to your PATH:"
-  printf '    export PATH="%s:$PATH"\n' "$dir"
 fi
 
 info "Installed sm2 $version → $dir/$BINARY"
 "$dir/$BINARY" version 2>/dev/null || true
+
+# Warn if the install dir isn't on PATH — otherwise `sm2` won't be found even
+# though it installed fine (common for /usr/local/bin on minimal server images).
+case ":$PATH:" in
+  *":$dir:"*) on_path=1 ;;
+  *) on_path=0 ;;
+esac
+
+if [ "$on_path" -ne 1 ]; then
+  printf '\n'
+  info "$dir is not on your PATH, so the bare 'sm2' command won't be found yet."
+  printf '  Add it for this shell and future ones:\n'
+  printf '    export PATH="%s:$PATH"\n' "$dir"
+  printf '    echo '"'"'export PATH="%s:$PATH"'"'"' >> ~/.bashrc\n' "$dir"
+  printf '  Or just run it by full path: %s/sm2 status\n' "$dir"
+fi
+
 cat <<'EOF'
 
 Get started:
