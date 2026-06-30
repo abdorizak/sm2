@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// CronSchedule is a parsed cron expression. It is exported so other components
+// (e.g. log rotation) can reuse sm2's cron parser.
+type CronSchedule struct{ inner cronSchedule }
+
+// ParseCron parses a standard 5-field cron expression (see the field rules on
+// the unexported parser).
+func ParseCron(expr string) (CronSchedule, error) {
+	s, err := parseCron(expr)
+	return CronSchedule{s}, err
+}
+
+// Match reports whether t falls on the schedule (minute resolution).
+func (c CronSchedule) Match(t time.Time) bool { return c.inner.match(t) }
+
 // cronSchedule is a parsed 5-field cron expression stored as bitsets:
 // minute hour day-of-month month day-of-week.
 type cronSchedule struct {

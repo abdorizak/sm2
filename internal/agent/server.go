@@ -27,6 +27,7 @@ type Server struct {
 	logger   zerolog.Logger
 	mgr      *process.Manager
 	notifier *notification.Discord
+	rotator  *rotator
 	ln       net.Listener
 }
 
@@ -52,6 +53,7 @@ func Run(logger zerolog.Logger) error {
 		logger:   logger,
 		mgr:      process.NewManager(logger, notifier),
 		notifier: notifier,
+		rotator:  newRotator(logger, notifier),
 		ln:       ln,
 	}
 
@@ -71,15 +73,21 @@ func Run(logger zerolog.Logger) error {
 	s.autoResurrect()
 	s.mgr.SetOnChange(s.autoSave)
 
-	// Apply notification settings saved via `sm2 notify` (after config so an
-	// explicit CLI setting wins on startup).
+	// Apply notification and log-rotation settings saved via the CLI (after
+	// config so an explicit CLI setting wins on startup).
 	s.loadNotify()
+	s.loadRotate()
+
+	// Rotate logs in the background; stop on shutdown.
+	quit := make(chan struct{})
+	go s.rotator.run(quit)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sig
 		logger.Info().Msg("shutting down")
+		close(quit)
 		s.mgr.StopAll()
 		_ = ln.Close()
 		_ = os.Remove(paths.Socket())
@@ -203,6 +211,28 @@ func (s *Server) dispatch(req ipc.Request) ipc.Response {
 		}
 		return ipc.Response{OK: true}
 
+	case ipc.ActionRotateSet:
+		if req.LogRotate == nil {
+			return ipc.Response{Error: "missing log-rotation config"}
+		}
+		s.rotator.set(*req.LogRotate)
+		cfg := s.rotator.get()
+		if err := s.saveRotate(cfg); err != nil {
+			return ipc.Response{Error: err.Error()}
+		}
+		return ipc.Response{OK: true, LogRotate: &cfg}
+
+	case ipc.ActionRotateGet:
+		cfg := s.rotator.get()
+		return ipc.Response{OK: true, LogRotate: &cfg}
+
+	case ipc.ActionRotateNow:
+		n, err := s.rotator.rotateNow()
+		if err != nil {
+			return ipc.Response{Error: err.Error()}
+		}
+		return ipc.Response{OK: true, Rotated: n}
+
 	case ipc.ActionReload:
 		if req.ConfigPath == "" {
 			return ipc.Response{Error: "no config file found"}
@@ -229,6 +259,9 @@ func (s *Server) loadConfig(path string) error {
 		return err
 	}
 	s.notifier.Configure(cfg.Notifications.Discord.Enabled, cfg.Notifications.Discord.Webhook)
+	if cfg.Logs.Set() {
+		s.rotator.set(cfg.Logs.ToIPC())
+	}
 	specs := cfg.Specs()
 	if err := s.mgr.Reconcile(specs); err != nil {
 		s.logger.Error().Err(err).Msg("reconcile reported errors")

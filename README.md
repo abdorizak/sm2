@@ -93,7 +93,7 @@ sm2 start bot -e TOKEN=xoxb-… -- node telegram-bot.js
 |---|---|
 | `start` `stop` `restart` `delete` `reset` `signal` | lifecycle (target a name, `all`, or `--namespace`) |
 | `status` (`ls`/`ps`) `describe` `logs` `flush` `ping` | inspect |
-| `config` `notify` `save` `resurrect` `startup` `unstartup` `kill` `update` | config & boot |
+| `config` `notify` `set` `save` `resurrect` `startup` `unstartup` `kill` `update` | config & boot |
 
 Run `sm2 <command> --help` for usage, or see the full reference in the docs site.
 
@@ -114,6 +114,38 @@ Or declare `notifications.discord` in config and `sm2 config reload`. Last actio
 Messages are rich, color-coded embeds (app · event · host · details), and delivery is
 **reliable**: sm2 honors Discord's rate limit (`Retry-After` on 429) and retries transient
 failures with backoff, so important events aren't silently dropped.
+
+## Log rotation
+
+By default sm2 appends each app's stdout/stderr to `~/.sm2/logs/<name>.{stdout,stderr}.log`.
+Turn on rotation so those files manage themselves instead of growing forever:
+
+```sh
+sm2 set logs.max_size 50M          # rotate a log once it passes 50 MB
+sm2 set logs.retain 7              # keep 7 rotated files, prune the rest
+sm2 set logs.compress true         # gzip rotated files (web.stdout.log.1.gz)
+sm2 set logs.interval "0 0 * * *"  # also rotate daily at midnight (optional cron)
+
+sm2 set                            # show the current settings
+sm2 set logs.rotate off            # turn rotation back off
+sm2 set logs.rotate now            # rotate every log immediately
+```
+
+Setting any `logs.*` option turns rotation on. Settings persist to `~/.sm2/logrotate.json`
+and survive restarts. The agent checks sizes every 30s (and on the cron schedule, if set);
+rotation is **copy-truncate**, so apps keep logging without a restart. If Discord
+notifications are enabled, sm2 also pings you when a log is rotated for exceeding its limit.
+
+You can declare the same thing in config:
+
+```yaml
+logs:
+  rotate: true
+  max_size: 50M
+  retain: 7
+  compress: true
+  interval: "0 0 * * *"   # optional
+```
 
 ## Configuration
 

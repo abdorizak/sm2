@@ -156,6 +156,21 @@ have "notify status shows enabled" "$($SM2 notify status 2>&1)" "enabled"
 have "webhook is masked" "$($SM2 notify status 2>&1)" "…"
 have "notify disable works" "$($SM2 notify discord --disable 2>&1)" "disabled"
 
+section "log rotation (sm2 set logs.*)"
+have "set logs.max_size auto-enables" "$($SM2 set logs.max_size 1K 2>&1)" "log rotation: on"
+$SM2 set logs.retain 3 >/dev/null
+$SM2 set logs.compress true >/dev/null
+have "set persists & shows compress" "$($SM2 set 2>&1)" "compress:  true"
+have "settings persisted to disk" "$(cat "$SM2_HOME/logrotate.json" 2>&1)" '"enabled": true'
+# Generate output, then force an immediate rotation.
+$SM2 start chatter --restart always --cmd 'i=0; while true; do echo "rotate-me-$i ============================"; i=$((i+1)); sleep 0.02; done' >/dev/null
+sleep 1
+have "rotate now reports a count" "$($SM2 set logs.rotate now 2>&1)" "rotated"
+sleep 1
+if ls "$SM2_HOME/logs/"chatter.stdout.log.1.gz >/dev/null 2>&1; then ok "gzipped backup created"; else no "gzipped backup missing"; fi
+have "rotate off disables" "$($SM2 set logs.rotate off 2>&1)" "log rotation: off"
+$SM2 delete chatter >/dev/null 2>&1
+
 section "flush logs"
 have "flush reports files" "$($SM2 flush api)" "flushed"
 

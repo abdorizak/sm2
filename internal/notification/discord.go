@@ -250,6 +250,8 @@ func icon(t events.Type) string {
 		return "❌"
 	case events.AppRestarted:
 		return "🔄"
+	case events.LogRotated:
+		return "🗄️"
 	default:
 		return "•"
 	}
@@ -266,6 +268,8 @@ func colorFor(t events.Type) int {
 		return 0x99AAB5 // grey
 	case events.AppCrashed:
 		return 0xED4245 // red
+	case events.LogRotated:
+		return 0x5865F2 // blurple
 	default:
 		return 0x5865F2 // blurple
 	}
@@ -281,6 +285,8 @@ func humanType(t events.Type) string {
 		return "crashed"
 	case events.AppRestarted:
 		return "restarted"
+	case events.LogRotated:
+		return "log rotated"
 	default:
 		return string(t)
 	}

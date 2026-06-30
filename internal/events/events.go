@@ -12,6 +12,7 @@ const (
 	AppStopped   Type = "APPLICATION_STOPPED"
 	AppCrashed   Type = "APPLICATION_CRASHED"
 	AppRestarted Type = "APPLICATION_RESTARTED"
+	LogRotated   Type = "LOG_ROTATED"
 )
 
 // Event is a single thing that happened to a managed app.

@@ -63,7 +63,7 @@ func newRootCmd() *cobra.Command {
 	}
 	add(gLifecycle, newStartCmd(), newStopCmd(), newRestartCmd(), newDeleteCmd(), newResetCmd(), newSignalCmd())
 	add(gInspect, newStatusCmd(), newDescribeCmd(), newLogsCmd(), newFlushCmd(), newPingCmd())
-	add(gConfig, newConfigCmd(), newNotifyCmd(), newSaveCmd(), newResurrectCmd(), newStartupCmd(), newUnstartupCmd(), newKillCmd())
+	add(gConfig, newConfigCmd(), newNotifyCmd(), newSetCmd(), newSaveCmd(), newResurrectCmd(), newStartupCmd(), newUnstartupCmd(), newKillCmd())
 
 	// ungrouped (appear under "Additional Commands"): update, version, hidden agent.
 	root.AddCommand(newUpdateCmd(), newVersionCmd(), newAgentCmd())

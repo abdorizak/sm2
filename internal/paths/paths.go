@@ -33,6 +33,9 @@ func Dump() string { return filepath.Join(Root(), "dump.json") }
 // NotifyFile persists notification settings set via `sm2 notify`.
 func NotifyFile() string { return filepath.Join(Root(), "notify.json") }
 
+// LogRotateFile persists log-rotation settings set via `sm2 set logs.*`.
+func LogRotateFile() string { return filepath.Join(Root(), "logrotate.json") }
+
 // State is the agent's auto-saved live process list (for self-healing across
 // agent restarts). Distinct from Dump (the explicit `sm2 save`).
 func State() string { return filepath.Join(Root(), "state.json") }

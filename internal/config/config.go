@@ -25,6 +25,7 @@ type Config struct {
 	Apps          map[string]AppConfig `yaml:"apps" toml:"apps"`
 	Notifications Notifications        `yaml:"notifications" toml:"notifications"`
 	Health        Health               `yaml:"health" toml:"health"`
+	Logs          Logs                 `yaml:"logs" toml:"logs"`
 }
 
 // Agent holds agent-wide settings.
@@ -72,6 +73,32 @@ type Discord struct {
 type Health struct {
 	Enabled  bool   `yaml:"enabled" toml:"enabled"`
 	Interval string `yaml:"interval" toml:"interval"`
+}
+
+// Logs configures automatic log rotation. The same settings can be applied at
+// runtime with `sm2 set logs.*`.
+type Logs struct {
+	Rotate   bool   `yaml:"rotate" toml:"rotate"`
+	MaxSize  string `yaml:"max_size,omitempty" toml:"max_size,omitempty"`
+	Retain   int    `yaml:"retain,omitempty" toml:"retain,omitempty"`
+	Compress bool   `yaml:"compress,omitempty" toml:"compress,omitempty"`
+	Interval string `yaml:"interval,omitempty" toml:"interval,omitempty"`
+}
+
+// Set reports whether a logs section was actually configured (any non-zero
+// field), so an empty/absent section doesn't clobber runtime `sm2 set` values.
+func (l Logs) Set() bool { return l != Logs{} }
+
+// ToIPC converts the config's logs section into the wire/runtime form.
+func (l Logs) ToIPC() ipc.LogRotateConfig {
+	max, _ := humanBytes(l.MaxSize)
+	return ipc.LogRotateConfig{
+		Enabled:      l.Rotate,
+		MaxSizeBytes: max,
+		Retain:       l.Retain,
+		Compress:     l.Compress,
+		Interval:     l.Interval,
+	}
 }
 
 // validPolicies is the set of accepted restart policies (empty = on-failure).
@@ -150,6 +177,14 @@ func Validate(c *Config) error {
 		if _, err := time.ParseDuration(c.Health.Interval); err != nil {
 			return fmt.Errorf("health.interval %q is not a valid duration", c.Health.Interval)
 		}
+	}
+	if c.Logs.MaxSize != "" {
+		if _, err := humanBytes(c.Logs.MaxSize); err != nil {
+			return fmt.Errorf("logs.max_size %q is not a valid size", c.Logs.MaxSize)
+		}
+	}
+	if c.Logs.Retain < 0 {
+		return fmt.Errorf("logs.retain must be >= 0")
 	}
 	return nil
 }
@@ -287,6 +322,13 @@ notifications:
 health:
   enabled: true
   interval: 30s
+
+logs:
+  rotate: false        # turn on automatic log rotation
+  max_size: 50M        # rotate a log once it passes this size
+  retain: 7            # keep this many rotated files
+  compress: true       # gzip rotated files
+  interval: "0 0 * * *"  # also rotate on this cron schedule (optional)
 `
 
 // DefaultTOML is the starter config written by `config init -c sm2.toml`.
@@ -311,6 +353,13 @@ webhook = ""
 [health]
 enabled = true
 interval = "30s"
+
+[logs]
+rotate = false           # turn on automatic log rotation
+max_size = "50M"         # rotate a log once it passes this size
+retain = 7               # keep this many rotated files
+compress = true          # gzip rotated files
+interval = "0 0 * * *"   # also rotate on this cron schedule (optional)
 `
 
 // DefaultConfig returns the starter template for the given format.
