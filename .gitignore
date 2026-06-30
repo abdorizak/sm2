@@ -24,3 +24,7 @@ vendor/
 
 # Local release helper (not committed)
 /release.sh
+
+# editor/agent skill artifacts (not part of the Go project)
+skills-lock.json
+.agents/
