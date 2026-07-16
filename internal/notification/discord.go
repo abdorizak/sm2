@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -29,9 +30,10 @@ var hostname = func() string {
 // never blocks the caller: events are queued and delivered by a worker
 // goroutine that retries on failure. It is safe to reconfigure at runtime.
 type Discord struct {
-	logger zerolog.Logger
-	client *http.Client
-	ch     chan events.Event
+	logger  zerolog.Logger
+	client  *http.Client
+	ch      chan events.Event
+	pending atomic.Int64 // events queued but not yet delivered
 
 	mu      sync.RWMutex
 	enabled bool
@@ -100,14 +102,30 @@ func (d *Discord) Emit(e events.Event) {
 	}
 	select {
 	case d.ch <- e:
+		d.pending.Add(1)
 	default:
 		d.logger.Warn().Str("app", e.App).Msg("notification queue full; dropping event")
 	}
 }
 
+// Flush waits until every queued event has been delivered (or given up on),
+// or the timeout elapses. Call it before exiting so shutdown events are not
+// lost. Returns true if the queue drained in time.
+func (d *Discord) Flush(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if d.pending.Load() == 0 {
+			return true
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	return d.pending.Load() == 0
+}
+
 func (d *Discord) loop() {
 	for e := range d.ch {
 		d.send(e)
+		d.pending.Add(-1)
 	}
 }
 
@@ -252,6 +270,12 @@ func icon(t events.Type) string {
 		return "🔄"
 	case events.LogRotated:
 		return "🗄️"
+	case events.DiskLow:
+		return "⚠️"
+	case events.DiskRecovered:
+		return "💾"
+	case events.AgentStopping:
+		return "🔌"
 	default:
 		return "•"
 	}
@@ -270,6 +294,12 @@ func colorFor(t events.Type) int {
 		return 0xED4245 // red
 	case events.LogRotated:
 		return 0x5865F2 // blurple
+	case events.DiskLow:
+		return 0xE67E22 // orange
+	case events.DiskRecovered:
+		return 0x57F287 // green
+	case events.AgentStopping:
+		return 0x99AAB5 // grey
 	default:
 		return 0x5865F2 // blurple
 	}
@@ -287,6 +317,12 @@ func humanType(t events.Type) string {
 		return "restarted"
 	case events.LogRotated:
 		return "log rotated"
+	case events.DiskLow:
+		return "disk space low"
+	case events.DiskRecovered:
+		return "disk space recovered"
+	case events.AgentStopping:
+		return "agent stopping"
 	default:
 		return string(t)
 	}

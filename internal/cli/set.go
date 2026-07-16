@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -20,6 +21,10 @@ func newSetCmd() *cobra.Command {
 			"  logs.retain     number of rotated files to keep\n" +
 			"  logs.compress   true|false — gzip rotated files\n" +
 			"  logs.interval   cron (e.g. \"0 0 * * *\") — also rotate on a schedule\n\n" +
+			"Disk-space monitor keys (alerts via `sm2 notify` when the disk runs low):\n" +
+			"  disk.monitor    on|off — watch the server's free disk space\n" +
+			"  disk.threshold  percent free that triggers the alert (default 10)\n" +
+			"  disk.path       filesystem to watch (default: sm2 home)\n\n" +
 			"Run `sm2 set` with no arguments to show the current settings.\n" +
 			"Run `sm2 set logs.rotate now` to rotate every log immediately.",
 		Args: cobra.MaximumNArgs(2),
@@ -28,10 +33,15 @@ func newSetCmd() *cobra.Command {
 			"  sm2 set logs.compress true\n" +
 			"  sm2 set logs.interval \"0 0 * * *\"\n" +
 			"  sm2 set logs.rotate off\n" +
-			"  sm2 set logs.rotate now",
+			"  sm2 set logs.rotate now\n" +
+			"  sm2 set disk.monitor on\n" +
+			"  sm2 set disk.threshold 15",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return showRotate()
+				if err := showRotate(); err != nil {
+					return err
+				}
+				return showDisk()
 			}
 			if len(args) != 2 {
 				return fmt.Errorf("usage: sm2 set <key> <value> (see `sm2 set --help`)")
@@ -42,8 +52,12 @@ func newSetCmd() *cobra.Command {
 	return cmd
 }
 
-// setKey applies one logs.* option and persists it.
+// setKey applies one logs.* or disk.* option and persists it.
 func setKey(key, val string) error {
+	if strings.HasPrefix(key, "disk.") {
+		return setDiskKey(key, val)
+	}
+
 	// "logs.rotate now" is a manual one-shot rotation, not a setting.
 	if key == "logs.rotate" && val == "now" {
 		resp, err := request(ipc.Request{Action: ipc.ActionRotateNow})
@@ -102,7 +116,7 @@ func setKey(key, val string) error {
 		cfg.Interval = val
 		cfg.Enabled = true
 	default:
-		return fmt.Errorf("unknown key %q (valid: logs.rotate, logs.max_size, logs.retain, logs.compress, logs.interval)", key)
+		return fmt.Errorf("unknown key %q (valid: logs.rotate, logs.max_size, logs.retain, logs.compress, logs.interval, disk.monitor, disk.threshold, disk.path)", key)
 	}
 
 	resp, err := request(ipc.Request{Action: ipc.ActionRotateSet, LogRotate: &cfg})
@@ -115,6 +129,89 @@ func setKey(key, val string) error {
 	fmt.Printf("set %s = %s\n", key, val)
 	printRotate(resp.LogRotate)
 	return nil
+}
+
+// setDiskKey applies one disk.* option and persists it.
+func setDiskKey(key, val string) error {
+	// Start from the current settings so we only change one field.
+	cur, err := request(ipc.Request{Action: ipc.ActionDiskGet})
+	if err != nil {
+		return err
+	}
+	cfg := ipc.DiskConfig{}
+	if cur.Disk != nil {
+		cfg = *cur.Disk
+	}
+
+	switch key {
+	case "disk.monitor":
+		on, err := parseOnOff(val)
+		if err != nil {
+			return err
+		}
+		cfg.Enabled = on
+	case "disk.threshold":
+		p, err := strconv.ParseFloat(val, 64)
+		if err != nil || p <= 0 || p >= 100 {
+			return fmt.Errorf("disk.threshold must be a percentage between 0 and 100")
+		}
+		cfg.ThresholdPercent = p
+		cfg.Enabled = true
+	case "disk.path":
+		if val == "default" || val == "" {
+			val = ""
+		}
+		cfg.Path = val
+		cfg.Enabled = true
+	default:
+		return fmt.Errorf("unknown key %q (valid: disk.monitor, disk.threshold, disk.path)", key)
+	}
+
+	resp, err := request(ipc.Request{Action: ipc.ActionDiskSet, Disk: &cfg})
+	if err != nil {
+		return err
+	}
+	if !resp.OK {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	fmt.Printf("set %s = %s\n", key, val)
+	printDisk(resp.Disk)
+	return nil
+}
+
+// showDisk prints the current disk-monitor settings.
+func showDisk() error {
+	resp, err := request(ipc.Request{Action: ipc.ActionDiskGet})
+	if err != nil {
+		return err
+	}
+	if !resp.OK {
+		return fmt.Errorf("%s", resp.Error)
+	}
+	printDisk(resp.Disk)
+	return nil
+}
+
+func printDisk(c *ipc.DiskConfig) {
+	if c == nil {
+		fmt.Println("disk monitor: not configured")
+		return
+	}
+	state := "off"
+	if c.Enabled {
+		state = "on"
+	}
+	threshold := c.ThresholdPercent
+	if threshold <= 0 {
+		threshold = 10
+	}
+	path := c.Path
+	if path == "" {
+		path = "(sm2 home)"
+	}
+	fmt.Printf("disk monitor: %s\n", state)
+	fmt.Printf("  threshold: %.0f%% free\n", threshold)
+	fmt.Printf("  path:      %s\n", path)
 }
 
 // showRotate prints the current log-rotation settings.

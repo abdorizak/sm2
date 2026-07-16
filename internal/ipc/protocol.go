@@ -21,6 +21,8 @@ const (
 	ActionRotateSet  = "rotate_set"
 	ActionRotateGet  = "rotate_get"
 	ActionRotateNow  = "rotate_now"
+	ActionDiskSet    = "disk_set"
+	ActionDiskGet    = "disk_get"
 )
 
 // DiscordConfig is the Discord webhook setting carried over the wire.
@@ -39,6 +41,15 @@ type LogRotateConfig struct {
 	Interval     string `json:"interval,omitempty"` // optional cron, e.g. "0 0 * * *"
 }
 
+// DiskConfig is the host disk-space monitor setting carried over the wire and
+// persisted to disk.json. The agent alerts when the watched filesystem's free
+// space drops below ThresholdPercent.
+type DiskConfig struct {
+	Enabled          bool    `json:"enabled"`
+	ThresholdPercent float64 `json:"threshold_percent"` // alert when free% < this (default 10)
+	Path             string  `json:"path,omitempty"`    // filesystem to watch (default sm2 home)
+}
+
 // Request is a single command sent from the CLI to the agent.
 type Request struct {
 	Action     string   `json:"action"`
@@ -52,6 +63,7 @@ type Request struct {
 
 	Discord   *DiscordConfig   `json:"discord,omitempty"`    // for notify_set
 	LogRotate *LogRotateConfig `json:"log_rotate,omitempty"` // for rotate_set
+	Disk      *DiskConfig      `json:"disk,omitempty"`       // for disk_set
 }
 
 // AppSpec describes an application the agent should manage.
@@ -86,6 +98,7 @@ type Response struct {
 	Detail    *AppDetail       `json:"detail,omitempty"`
 	Discord   *DiscordConfig   `json:"discord,omitempty"`    // for notify_get
 	LogRotate *LogRotateConfig `json:"log_rotate,omitempty"` // for rotate_get/set
+	Disk      *DiskConfig      `json:"disk,omitempty"`       // for disk_get/set
 	Rotated   int              `json:"rotated,omitempty"`    // count rotated by rotate_now
 }
 

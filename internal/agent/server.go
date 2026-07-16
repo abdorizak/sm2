@@ -12,10 +12,12 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/rs/zerolog"
 
 	"github.com/abdorizak/sm2/internal/config"
+	"github.com/abdorizak/sm2/internal/events"
 	"github.com/abdorizak/sm2/internal/ipc"
 	"github.com/abdorizak/sm2/internal/notification"
 	"github.com/abdorizak/sm2/internal/paths"
@@ -28,6 +30,7 @@ type Server struct {
 	mgr      *process.Manager
 	notifier *notification.Discord
 	rotator  *rotator
+	disk     *diskMonitor
 	ln       net.Listener
 }
 
@@ -54,6 +57,7 @@ func Run(logger zerolog.Logger) error {
 		mgr:      process.NewManager(logger, notifier),
 		notifier: notifier,
 		rotator:  newRotator(logger, notifier),
+		disk:     newDiskMonitor(logger, notifier),
 		ln:       ln,
 	}
 
@@ -73,25 +77,35 @@ func Run(logger zerolog.Logger) error {
 	s.autoResurrect()
 	s.mgr.SetOnChange(s.autoSave)
 
-	// Apply notification and log-rotation settings saved via the CLI (after
-	// config so an explicit CLI setting wins on startup).
+	// Apply notification, log-rotation and disk-monitor settings saved via
+	// the CLI (after config so an explicit CLI setting wins on startup).
 	s.loadNotify()
 	s.loadRotate()
+	s.loadDisk()
 
-	// Rotate logs in the background; stop on shutdown.
+	// Rotate logs and watch disk space in the background; stop on shutdown.
 	quit := make(chan struct{})
 	go s.rotator.run(quit)
+	go s.disk.run(quit)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sig
 		logger.Info().Msg("shutting down")
+		apps := len(s.mgr.ActiveSpecs())
+		s.notifier.Emit(events.Event{Type: events.AgentStopping, App: "agent",
+			Message: fmt.Sprintf("shutting down; stopping %d app(s)", apps), Time: time.Now()})
 		close(quit)
 		s.mgr.StopAll()
-		_ = ln.Close()
+		// Give queued notifications (agent stopping, per-app stops) a chance
+		// to reach Discord before the process exits.
+		s.notifier.Flush(5 * time.Second)
+		// Clean up before closing the listener: once Accept returns, the
+		// main goroutine may exit the process ahead of this one.
 		_ = os.Remove(paths.Socket())
 		_ = os.Remove(paths.PidFile())
+		_ = ln.Close()
 		os.Exit(0)
 	}()
 
@@ -225,6 +239,21 @@ func (s *Server) dispatch(req ipc.Request) ipc.Response {
 	case ipc.ActionRotateGet:
 		cfg := s.rotator.get()
 		return ipc.Response{OK: true, LogRotate: &cfg}
+
+	case ipc.ActionDiskSet:
+		if req.Disk == nil {
+			return ipc.Response{Error: "missing disk config"}
+		}
+		s.disk.set(*req.Disk)
+		cfg := s.disk.get()
+		if err := s.saveDisk(cfg); err != nil {
+			return ipc.Response{Error: err.Error()}
+		}
+		return ipc.Response{OK: true, Disk: &cfg}
+
+	case ipc.ActionDiskGet:
+		cfg := s.disk.get()
+		return ipc.Response{OK: true, Disk: &cfg}
 
 	case ipc.ActionRotateNow:
 		n, err := s.rotator.rotateNow()

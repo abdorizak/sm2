@@ -84,7 +84,7 @@ sm2 start bot -e TOKEN=xoxb-… -- node telegram-bot.js
 - **Reboot survival & self-healing** — the agent auto-saves its live process
   list and resurrects it if it restarts; `save` / `resurrect` / `startup`
   (launchd & systemd) for boot.
-- **Notifications** — Discord webhooks on start/stop/crash/restart.
+- **Notifications** — Discord webhooks on start/stop/crash/restart, low disk space, and agent shutdown.
 - **Single binary** — auto-spawned agent, zero external dependencies.
 
 ## Commands
@@ -113,7 +113,24 @@ Or declare `notifications.discord` in config and `sm2 config reload`. Last actio
 
 Messages are rich, color-coded embeds (app · event · host · details), and delivery is
 **reliable**: sm2 honors Discord's rate limit (`Retry-After` on 429) and retries transient
-failures with backoff, so important events aren't silently dropped.
+failures with backoff, so important events aren't silently dropped. When the agent shuts
+down it sends an **agent stopping** notice and flushes any queued events before exiting.
+
+### Disk-space alerts
+
+sm2 can watch the server's free disk space and alert you before it runs out — one
+`statfs` call per minute, effectively free:
+
+```sh
+sm2 set disk.monitor on        # watch the filesystem holding ~/.sm2
+sm2 set disk.threshold 15      # alert when free space drops below 15% (default 10)
+sm2 set disk.path /var         # watch a different filesystem
+```
+
+You get a ⚠️ **disk space low** embed when free space crosses the threshold, a reminder
+every 6 hours while it stays low, and a 💾 **disk space recovered** notice once it climbs
+back above the threshold (with a small margin so it doesn't flap). Settings persist to
+`~/.sm2/disk.json` and survive agent restarts.
 
 ## Log rotation
 

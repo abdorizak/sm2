@@ -8,11 +8,14 @@ type Type string
 
 // Lifecycle event types.
 const (
-	AppStarted   Type = "APPLICATION_STARTED"
-	AppStopped   Type = "APPLICATION_STOPPED"
-	AppCrashed   Type = "APPLICATION_CRASHED"
-	AppRestarted Type = "APPLICATION_RESTARTED"
-	LogRotated   Type = "LOG_ROTATED"
+	AppStarted    Type = "APPLICATION_STARTED"
+	AppStopped    Type = "APPLICATION_STOPPED"
+	AppCrashed    Type = "APPLICATION_CRASHED"
+	AppRestarted  Type = "APPLICATION_RESTARTED"
+	LogRotated    Type = "LOG_ROTATED"
+	DiskLow       Type = "DISK_SPACE_LOW"
+	DiskRecovered Type = "DISK_SPACE_RECOVERED"
+	AgentStopping Type = "AGENT_STOPPING"
 )
 
 // Event is a single thing that happened to a managed app.
