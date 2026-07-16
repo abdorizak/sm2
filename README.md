@@ -118,13 +118,14 @@ down it sends an **agent stopping** notice and flushes any queued events before 
 
 ### Disk-space alerts
 
-sm2 can watch the server's free disk space and alert you before it runs out — one
-`statfs` call per minute, effectively free:
+sm2 watches the server's free disk space **out of the box** — one `statfs` call per
+minute, effectively free. If Discord notifications are enabled, you'll be warned
+before the disk runs out; there's no second switch to remember:
 
 ```sh
-sm2 set disk.monitor on        # watch the filesystem holding ~/.sm2
 sm2 set disk.threshold 15      # alert when free space drops below 15% (default 10)
-sm2 set disk.path /var         # watch a different filesystem
+sm2 set disk.path /var         # watch a different filesystem (default: the one holding ~/.sm2)
+sm2 set disk.monitor off       # opt out entirely
 ```
 
 You get a ⚠️ **disk space low** embed when free space crosses the threshold, a reminder

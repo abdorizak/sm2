@@ -17,6 +17,16 @@ func evalAt(m *diskMonitor, now time.Time, freePct float64) *events.Event {
 	return m.evaluate(now, 10, "/", freePct, 1<<30, 10<<30)
 }
 
+func TestDiskMonitorEnabledByDefault(t *testing.T) {
+	cfg := newTestDiskMonitor().get()
+	if !cfg.Enabled {
+		t.Fatal("disk monitor should be enabled by default")
+	}
+	if cfg.ThresholdPercent != defaultDiskThreshold {
+		t.Fatalf("default threshold = %v, want %v", cfg.ThresholdPercent, defaultDiskThreshold)
+	}
+}
+
 func TestDiskMonitorAlertsOnceBelowThreshold(t *testing.T) {
 	m := newTestDiskMonitor()
 	now := time.Unix(1000, 0)

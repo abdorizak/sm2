@@ -48,6 +48,10 @@ func newDiskMonitor(logger zerolog.Logger, notifier *notification.Discord) *disk
 	return &diskMonitor{
 		logger:   logger.With().Str("component", "diskmon").Logger(),
 		notifier: notifier,
+		// On by default: the check costs one statfs a minute, and alerts only
+		// leave the machine when a notifier is configured — so an install
+		// without Discord stays silent. `sm2 set disk.monitor off` opts out.
+		cfg: ipc.DiskConfig{Enabled: true, ThresholdPercent: defaultDiskThreshold},
 	}
 }
 

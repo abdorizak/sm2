@@ -21,7 +21,7 @@ func newSetCmd() *cobra.Command {
 			"  logs.retain     number of rotated files to keep\n" +
 			"  logs.compress   true|false — gzip rotated files\n" +
 			"  logs.interval   cron (e.g. \"0 0 * * *\") — also rotate on a schedule\n\n" +
-			"Disk-space monitor keys (alerts via `sm2 notify` when the disk runs low):\n" +
+			"Disk-space monitor keys (on by default; alerts via `sm2 notify` when the disk runs low):\n" +
 			"  disk.monitor    on|off — watch the server's free disk space\n" +
 			"  disk.threshold  percent free that triggers the alert (default 10)\n" +
 			"  disk.path       filesystem to watch (default: sm2 home)\n\n" +
