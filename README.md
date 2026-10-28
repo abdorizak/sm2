@@ -47,6 +47,7 @@ Windows is not supported (sm2 uses Unix process groups, signals and sockets).
 sm2 start web -- npm run start                  # run & supervise (command after --)
 sm2 start api --restart always -- ./api         # flags go before --
 sm2 status                                      # boxed, colored table
+sm2 sys                                         # everything running on the server
 sm2 logs web --follow                           # tail output
 sm2 save                                        # snapshot for reboot survival
 ```
@@ -77,6 +78,9 @@ sm2 start bot -e TOKEN=xoxb-… -- node telegram-bot.js
 - **Auto-restart** — `always` / `on-failure` / `never`, with max-retries and
   fixed or exponential backoff.
 - **Live monitoring** — per-process CPU, memory, uptime and restart counts.
+- **Server discovery** — `sm2 sys` finds and describes everything running on the
+  machine (systemd services, databases, containers, stray processes) without
+  you naming anything.
 - **Declarative config** — describe your stack in `sm2.yaml`; `config reload`
   reconciles the running set (start new, stop removed, restart changed).
 - **Restart triggers** — `--max-memory-restart`, `--watch` (file changes),
@@ -92,10 +96,60 @@ sm2 start bot -e TOKEN=xoxb-… -- node telegram-bot.js
 | | |
 |---|---|
 | `start` `stop` `restart` `delete` `reset` `signal` | lifecycle (target a name, `all`, or `--namespace`) |
-| `status` (`ls`/`ps`) `describe` `logs` `flush` `ping` | inspect |
+| `status` (`ls`/`ps`) `sys` `describe` `logs` `flush` `ping` | inspect |
 | `config` `notify` `set` `save` `resurrect` `startup` `unstartup` `kill` `update` | config & boot |
 
 Run `sm2 <command> --help` for usage, or see the full reference in the docs site.
+
+### See everything running on the server
+
+`sm2 sys` shows what's on the machine, not just the apps sm2 started. You don't
+have to name anything: it finds systemd services, Docker containers, your sm2
+apps and any other process listening on a port, then says what each one is.
+
+```
+$ sm2 sys
+web-01 · Ubuntu 24.04.1 LTS · up 12D
+
+DATABASES
+  postgresql@16-main   PostgreSQL 16.4          :5432      209.8MB   up 12D   systemd
+
+CACHES
+  redis-server         Redis 7.0.15             :6379      8.1MB     up 12D   systemd
+
+WEB SERVERS
+  nginx                nginx 1.24.0             :80 :443   11.7MB    up 3D    systemd
+
+CONTAINERS
+  metabase             metabase/metabase:v0.50  :3000      -         up 2D    docker
+
+SM2 APPS
+  api                  ./api                    :8080      21.5MB    up 5h    sm2
+
+UNMANAGED ⚠
+  node                 node server.js           :4000      87.9MB    up 9D    pid 4412
+
+FAILED
+  mysql                MySQL 8.0.39             -          -         failed 2h ago   systemd
+
+7 shown · 1 failed · 41 routine services hidden (sm2 sys --all)
+```
+
+```sh
+sm2 sys                 # everything notable (same as: sm2 ls -a)
+sm2 sys --all           # include routine system units (journald, cron, …)
+sm2 sys postgres        # describe one: package, unit file, listen addresses, recent logs
+sm2 sys --json          # machine-readable
+sudo sm2 sys            # full detail, incl. ports and logs owned by other users
+```
+
+Versions come from the package manager (dpkg/rpm, or Homebrew on macOS), and
+memory from systemd's cgroup accounting where available. **Unmanaged** lists
+processes that listen on a port with nothing supervising them, like a
+`node server.js &` someone left running in tmux. Without root, sm2 still matches
+other users' ports to services by well-known port number. The full view relies
+on systemd, so it is most complete on Linux servers; on macOS it shows
+listening processes, containers and sm2 apps.
 
 ### Notifications
 

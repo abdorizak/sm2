@@ -13,13 +13,17 @@ import (
 )
 
 func newStatusCmd() *cobra.Command {
-	var asJSON bool
+	var asJSON, all bool
 	cmd := &cobra.Command{
 		Use:     "status",
 		Aliases: []string{"ls", "ps", "list"},
 		Short:   "Show the status of all managed applications",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if all {
+				// `sm2 ls -a`: everything on the server, not just sm2's apps.
+				return runSys(false, asJSON)
+			}
 			resp, err := request(ipc.Request{Action: ipc.ActionStatus})
 			if err != nil {
 				return err
@@ -40,6 +44,7 @@ func newStatusCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output as JSON")
+	cmd.Flags().BoolVarP(&all, "all", "a", false, "show everything running on the server (same as sm2 sys)")
 	return cmd
 }
 

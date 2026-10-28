@@ -24,7 +24,12 @@ func request(req ipc.Request) (ipc.Response, error) {
 
 // send dials the agent socket and performs one request/response exchange.
 func send(req ipc.Request) (ipc.Response, error) {
-	conn, err := net.Dial("unix", paths.Socket())
+	return sendTo(paths.Socket(), req)
+}
+
+// sendTo performs one request/response exchange over the given socket.
+func sendTo(socket string, req ipc.Request) (ipc.Response, error) {
+	conn, err := net.Dial("unix", socket)
 	if err != nil {
 		return ipc.Response{}, err
 	}

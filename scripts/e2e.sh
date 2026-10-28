@@ -182,6 +182,25 @@ if SM2_FORCE_COLOR=1 $SM2 status | grep -qF "${ESC}["; then ok "color emitted wh
 if SM2_FORCE_COLOR=1 $SM2 status --no-color | grep -qF "${ESC}["; then no "--no-color still emitted escapes"; else ok "--no-color suppresses escapes"; fi
 if $SM2 status --plain | grep -qF "┌"; then no "--plain still drew a box"; else ok "--plain suppresses box"; fi
 
+section "sys (server discovery)"
+if command -v python3 >/dev/null 2>&1; then
+  PORT=$((20000 + RANDOM % 10000))
+  $SM2 start sysweb -- python3 -m http.server "$PORT" --bind 127.0.0.1 >/dev/null
+  sleep 2
+  SYS="$($SM2 sys)"
+  have "sys lists sm2 apps group" "$SYS" "sm2 apps"
+  have "sys shows the app's listening port" "$SYS" ":$PORT"
+  have "ls -a is the same view" "$($SM2 ls -a)" "sysweb"
+  have "sys --json tags the source" "$($SM2 sys --json)" '"source": "sm2"'
+  SYSD="$($SM2 sys sysweb)"
+  have "sys <name> describes one service" "$SYSD" "managed by"
+  have "sys <name> shows listen address" "$SYSD" "127.0.0.1:$PORT"
+  if $SM2 sys no-such-service-xyz >/dev/null 2>&1; then no "sys <unknown> should fail"; else ok "sys <unknown> fails"; fi
+  $SM2 delete sysweb >/dev/null
+else
+  printf "  ${DIM}(skipped: python3 not found)${OFF}\n"
+fi
+
 section "save / resurrect (survives agent kill)"
 $SM2 save >/dev/null
 $SM2 kill >/dev/null
