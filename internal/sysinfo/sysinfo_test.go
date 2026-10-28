@@ -12,21 +12,22 @@ import (
 
 // A small but realistic Ubuntu server, as seen by a non-root user.
 
-const fakePS = `    1     0     1 12000 12-00:00:00 root      /sbin/init
-  600     1   600  9000 12-00:00:00 systemd-resolve /usr/lib/systemd/systemd-resolved
-  655     1   655 95000 12-00:00:00 root      /usr/bin/dockerd -H fd://
-  700     1   700  7000 12-00:00:00 root      sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
-  790     1   790  8000 12-00:00:00 redis     /usr/bin/redis-server 127.0.0.1:6379
-  812     1   812 30000 12-00:00:00 postgres  /usr/lib/postgresql/16/bin/postgres -D /var/lib/postgresql/16/main -c config_file=/etc/postgresql/16/main/postgresql.conf
-  813   812   812 20000 12-00:00:00 postgres  postgres: 16/main: checkpointer
-  901     1   901  4000 03-00:00:00 root      nginx: master process /usr/sbin/nginx -g daemon on; master_process on;
-  902   901   901  8000 03-00:00:00 www-data  nginx: worker process
- 1500   655  1500  2000 02-00:00:00 root      /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 3000
- 3000  2000  3000  1000    05:00:00 xman      sh -c ./api
- 3001  3000  3000 21000    05:00:00 xman      ./api
- 4400  4300  4400  5000 09-00:00:00 xman      -bash
- 4412  4400  4412 90000 09-00:00:00 xman      node server.js
- 5000  4900  5000 15000    01:00:00 xman      /home/xman/bin/myworker
+const fakePS = `    1     0     1 12000  0.0 12-00:00:00 root      /sbin/init
+  600     1   600  9000  0.0 12-00:00:00 systemd-resolve /usr/lib/systemd/systemd-resolved
+  655     1   655 95000  0.0 12-00:00:00 root      /usr/bin/dockerd -H fd://
+  700     1   700  7000  0.0 12-00:00:00 root      sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
+  790     1   790  8000  0.0 12-00:00:00 redis     /usr/bin/redis-server 127.0.0.1:6379
+  812     1   812 30000  0.0 12-00:00:00 postgres  /usr/lib/postgresql/16/bin/postgres -D /var/lib/postgresql/16/main -c config_file=/etc/postgresql/16/main/postgresql.conf
+  813   812   812 20000  0.0 12-00:00:00 postgres  postgres: 16/main: checkpointer
+  901     1   901  4000  0.0 03-00:00:00 root      nginx: master process /usr/sbin/nginx -g daemon on; master_process on;
+  902   901   901  8000  0.0 03-00:00:00 www-data  nginx: worker process
+ 1500   655  1500  2000  0.0 02-00:00:00 root      /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 3000
+ 3000  2000  3000  1000  0.0    05:00:00 xman      sh -c ./api
+ 3001  3000  3000 21000  0.0    05:00:00 xman      ./api
+ 4400  4300  4400  5000  0.0 09-00:00:00 xman      -bash
+ 4412  4400  4412 90000  0.0 09-00:00:00 xman      node server.js
+ 5000  4900  5000 15000  0.0    01:00:00 xman      /home/xman/bin/myworker
+ 1600  1590  1600 640000  0.0 02-00:00:00 2000      java -jar metabase.jar
 `
 
 const fakeComm = `    1 systemd
@@ -44,6 +45,7 @@ const fakeComm = `    1 systemd
  4400 bash
  4412 node
  5000 myworker
+ 1600 java
 `
 
 // Non-root: only our own processes show their pid in ss.
@@ -113,6 +115,17 @@ const fakeDocker = `{"Command":"\"/app/run_metabase.sh\"","ID":"4f1c2d3e4b5a6978
 `
 
 var fakeCgroups = map[int]string{
+	600:  "0::/system.slice/systemd-resolved.service\n",
+	655:  "0::/system.slice/docker.service\n",
+	700:  "0::/system.slice/ssh.service\n",
+	790:  "0::/system.slice/redis-server.service\n",
+	812:  "0::/system.slice/system-postgresql.slice/postgresql@16-main.service\n",
+	813:  "0::/system.slice/system-postgresql.slice/postgresql@16-main.service\n",
+	901:  "0::/system.slice/nginx.service\n",
+	902:  "0::/system.slice/nginx.service\n",
+	1500: "0::/system.slice/docker.service\n",
+	1600: "0::/system.slice/docker-4f1c2d3e4b5a6978aaaa.scope\n",
+	3000: "0::/user.slice/user-1000.slice/session-2.scope\n",
 	3001: "0::/user.slice/user-1000.slice/session-2.scope\n",
 	4412: "0::/user.slice/user-1000.slice/session-3.scope\n",
 	5000: "0::/user.slice/user-1000.slice/user@1000.service/app.slice/myworker.service\n",
@@ -128,9 +141,13 @@ var fakeDpkg = map[string][2]string{
 	"/bin/true":                           {"coreutils", "9.4-3ubuntu6"},
 }
 
+// fakeCPU is CPU ticks (1/100 s) each process burns between the two /proc
+// samples, which the fake clock places 500ms apart.
+var fakeCPU = map[int]uint64{812: 10, 813: 5, 901: 1, 902: 4, 1600: 25, 3001: 2, 4412: 50}
+
 func fakeEnv(t *testing.T) env {
 	cmds := map[string]string{
-		"ps -A -o pid=,ppid=,pgid=,rss=,etime=,user:32=,args=": fakePS,
+		"ps -A -o pid=,ppid=,pgid=,rss=,%cpu=,etime=,user:32=,args=": fakePS,
 		"ps -A -o pid=,comm=": fakeComm,
 		"ss -ltnp":            fakeSS,
 		"systemctl list-units --type=service --all --no-legend --no-pager --plain":           fakeUnits,
@@ -144,7 +161,16 @@ func fakeEnv(t *testing.T) env {
 	files := map[string]string{
 		"/etc/os-release": "NAME=\"Ubuntu\"\nPRETTY_NAME=\"Ubuntu 24.04.1 LTS\"\n",
 		"/proc/uptime":    "1036800.12 2000000.00\n",
+		"/proc/loadavg":   "0.42 0.30 0.25 1/300 5000\n",
+		"/proc/meminfo":   "MemTotal:        8000000 kB\nMemFree:  1000000 kB\nMemAvailable:    5000000 kB\n",
 	}
+	var pids []string
+	for _, line := range strings.Split(fakeComm, "\n") {
+		if f := strings.Fields(line); len(f) > 0 {
+			pids = append(pids, f[0])
+		}
+	}
+	samples, clockCalls := 0, 0
 	for pid, cg := range fakeCgroups {
 		files[fmt.Sprintf("/proc/%d/cgroup", pid)] = cg
 	}
@@ -162,11 +188,29 @@ func fakeEnv(t *testing.T) env {
 			if v, ok := files[p]; ok {
 				return []byte(v), nil
 			}
+			var pid int
+			if _, err := fmt.Sscanf(p, "/proc/%d/stat", &pid); err == nil {
+				ticks := uint64(1000)
+				if samples > 1 {
+					ticks += fakeCPU[pid]
+				}
+				return []byte(fmt.Sprintf("%d (some (odd) name) S 1 1 1 0 -1 0 0 0 0 0 %d 0 0 0", pid, ticks)), nil
+			}
 			return nil, errors.New("permission denied")
 		},
 		readlink: func(string) (string, error) { return "", errors.New("permission denied") },
-		has:      func(string) bool { return true },
-		now:      fakeNow,
+		readDir: func(p string) ([]string, error) {
+			samples++
+			return append(pids, "self", "sys"), nil
+		},
+		has: func(string) bool { return true },
+		now: fakeNow,
+		clock: func() time.Time {
+			clockCalls++
+			return fakeNow.Add(time.Duration(clockCalls-1) * 250 * time.Millisecond)
+		},
+		sleep:    func(time.Duration) {},
+		diskUsed: func(string) float64 { return 41 },
 	}
 }
 
@@ -197,6 +241,9 @@ func TestDiscoverLinuxServer(t *testing.T) {
 	if r.OS != "Ubuntu 24.04.1 LTS" || r.HostUptimeSec != 1036800 {
 		t.Errorf("host info = %q, %d", r.OS, r.HostUptimeSec)
 	}
+	if u := r.Usage; u.Load1 != 0.42 || u.MemTotal != 8000000*1024 || u.MemUsed != 3000000*1024 || u.DiskUsedPct != 41 {
+		t.Errorf("host usage = %+v", u)
+	}
 
 	pg := byName(t, r, "postgresql@16-main")
 	if pg.Product != "PostgreSQL" || pg.Version != "16.4" || pg.Kind != "database" {
@@ -211,6 +258,25 @@ func TestDiscoverLinuxServer(t *testing.T) {
 	}
 	if pg.MemoryBytes != 220000000 || pg.UptimeSec != 12*86400 || pg.User != "postgres" {
 		t.Errorf("postgres mem/uptime/user = %d %d %q", pg.MemoryBytes, pg.UptimeSec, pg.User)
+	}
+
+	// CPU over the 500ms window, summed across each service's processes:
+	// postgres = postmaster + checkpointer, nginx = master + worker, the
+	// container via its cgroup, the sm2 app via its process group.
+	cpuWant := map[string]float64{
+		"postgresql@16-main": 30, "nginx": 10, "metabase": 50, "api": 4, "node": 100, "redis-server": 0,
+	}
+	for name, want := range cpuWant {
+		s := byName(t, r, name)
+		if s.CPUPercent == nil || *s.CPUPercent < want-0.01 || *s.CPUPercent > want+0.01 {
+			t.Errorf("%s cpu = %v, want %.0f%%", name, s.CPUPercent, want)
+		}
+	}
+	if m := byName(t, r, "mysql"); m.CPUPercent != nil {
+		t.Errorf("failed mysql has cpu %v", *m.CPUPercent)
+	}
+	if mb := byName(t, r, "metabase"); mb.MemoryBytes != 640000*1024 {
+		t.Errorf("metabase memory = %d (want its cgroup's rss)", mb.MemoryBytes)
 	}
 
 	ng := byName(t, r, "nginx")
@@ -491,5 +557,22 @@ func TestCleanAddr(t *testing.T) {
 	}
 	if a := cleanAddr("[fe80::1%eth0]:22"); a != "[fe80::1]:22" {
 		t.Errorf("cleanAddr v6 = %q", a)
+	}
+}
+
+func TestParseStatTicks(t *testing.T) {
+	ticks, ok := parseStatTicks([]byte("42 (tmux: server) S 1 42 42 0 -1 4194560 5 0 0 0 120 30 0 0 20 0 1"))
+	if !ok || ticks != 150 {
+		t.Errorf("parseStatTicks = %d %v", ticks, ok)
+	}
+	if _, ok := parseStatTicks([]byte("garbage")); ok {
+		t.Error("garbage parsed")
+	}
+}
+
+func TestVMStatFree(t *testing.T) {
+	out := "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:      1000.\nPages active:   9999.\nPages inactive:  500.\nPages speculative: 100.\n"
+	if got := vmStatFree(out); got != 1600*16384 {
+		t.Errorf("vmStatFree = %d", got)
 	}
 }

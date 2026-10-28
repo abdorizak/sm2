@@ -16,8 +16,11 @@ func readDocker(e env, note func(string)) []*Service {
 	}
 	out, err := e.run("docker", "ps", "-a", "--no-trunc", "--format", "{{json .}}")
 	if err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "permission denied") {
+		switch msg := strings.ToLower(err.Error()); {
+		case strings.Contains(msg, "permission denied"):
 			note("docker: permission denied — add your user to the docker group, or run with sudo")
+		case strings.Contains(msg, "timed out"):
+			note("docker: not responding (" + err.Error() + ") — containers not shown")
 		}
 		return nil
 	}

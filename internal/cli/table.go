@@ -15,6 +15,12 @@ type column struct {
 // (uncolored) values; decorate(col, raw) supplies the display string, which may
 // contain ANSI escapes that do not affect alignment.
 func renderBox(cols []column, rows [][]string, decorate func(col int, raw string) string) string {
+	return renderBoxSections(cols, rows, nil, decorate)
+}
+
+// renderBoxSections is renderBox with a separator line drawn above each row
+// index in breaks, to set groups of rows apart.
+func renderBoxSections(cols []column, rows [][]string, breaks map[int]bool, decorate func(col int, raw string) string) string {
 	n := len(cols)
 	width := make([]int, n)
 	for i, c := range cols {
@@ -60,8 +66,11 @@ func renderBox(cols []column, rows [][]string, decorate func(col int, raw string
 	border("┌", "┬", "┐")
 	row(func(i int) (string, string) { return cols[i].header, bold(cols[i].header) })
 	border("├", "┼", "┤")
-	for _, r := range rows {
+	for ri, r := range rows {
 		r := r
+		if breaks[ri] && ri > 0 {
+			border("├", "┼", "┤")
+		}
 		row(func(i int) (string, string) {
 			raw := r[i]
 			if decorate == nil {

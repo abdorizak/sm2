@@ -70,7 +70,7 @@ func runSys(all, asJSON bool) error {
 		return printJSON(r)
 	}
 	if boxOn {
-		printSysGrouped(r, all)
+		printSysBox(r, all)
 	} else {
 		printSysPlain(r)
 	}
@@ -86,37 +86,97 @@ func printJSON(v any) error {
 	return nil
 }
 
-// sysCells returns the display columns for one service:
-// name, what, ports, memory, uptime/state, source.
-func sysCells(s sysinfo.Service) []string {
-	mem := "-"
+var sysHeaders = []string{
+	"name", "type", "service", "pid", "ports", "uptime", "status", "cpu", "mem", "user", "managed by",
+}
+
+// sysCells returns the table columns for one service.
+func sysCells(s sysinfo.Service, platform string) []string {
+	pid, cpu, mem, user := "-", "-", "-", "-"
+	if s.PID > 0 {
+		pid = strconv.Itoa(s.PID)
+	}
+	if s.CPUPercent != nil {
+		cpu = fmt.Sprintf("%.1f%%", *s.CPUPercent)
+	}
 	if s.MemoryBytes > 0 {
 		mem = humanizeBytes(s.MemoryBytes)
 	}
-	src := string(s.Source)
-	switch {
-	case s.Kind == "listener":
-		src = "-"
-	case s.Source == sysinfo.SourceProcess && s.PID > 0:
-		src = fmt.Sprintf("pid %d", s.PID)
+	if s.User != "" {
+		user = s.User
 	}
-	return []string{s.Name, truncate(s.What(), 44), portList(s.Ports), mem, sysUptime(s), src}
+	return []string{
+		truncate(s.Name, 28), sysType(s), truncate(s.What(), 30), pid, portList(s.Ports),
+		sysUptime(s), sysStatus(s), cpu, mem, user, sysManager(s, platform),
+	}
 }
 
+// sysType is what kind of thing a service is: a database, a cache, a web
+// server, … or, for unrecognized software, how it runs.
+func sysType(s sysinfo.Service) string {
+	switch {
+	case s.Kind == "listener":
+		return "port"
+	case s.Kind != "":
+		return s.Kind
+	case s.Source == sysinfo.SourceDocker:
+		return "container"
+	case s.Source == sysinfo.SourceSM2:
+		return "app"
+	case s.Source == sysinfo.SourceProcess:
+		return "process"
+	default:
+		return "service"
+	}
+}
+
+func sysManager(s sysinfo.Service, platform string) string {
+	switch {
+	case s.Kind == "listener":
+		return "?"
+	case s.Source == sysinfo.SourceProcess && platform == "linux":
+		return "none" // nothing will restart it if it dies
+	case s.Source == sysinfo.SourceProcess:
+		return "-"
+	default:
+		return string(s.Source)
+	}
+}
+
+// sysUptime is time up for a live service, or time since a failure/exit.
 func sysUptime(s sysinfo.Service) string {
 	switch {
-	case s.Failed && s.SinceSec > 0:
-		return fmt.Sprintf("%s %s ago", s.State, compactDuration(s.SinceSec))
-	case s.Failed:
-		return s.State
-	case s.Kind == "listener":
-		return "listening"
-	case s.State == "running" && s.UptimeSec > 0:
-		return "up " + compactDuration(s.UptimeSec)
-	case s.State == "running":
-		return "up"
+	case s.UptimeSec > 0 && !s.Failed && s.State == "running":
+		return compactDuration(s.UptimeSec)
+	case s.SinceSec > 0 && s.State != "running":
+		return compactDuration(s.SinceSec) + " ago"
 	default:
-		return s.State
+		return "-"
+	}
+}
+
+func sysStatus(s sysinfo.Service) string {
+	switch {
+	case s.Kind == "listener":
+		return "LISTEN"
+	case s.Failed && strings.HasPrefix(s.State, "failed"):
+		return "FAILED"
+	default:
+		return strings.ToUpper(s.State)
+	}
+}
+
+// colorSysStatus tints a status cell by meaning, like colorState for apps.
+func colorSysStatus(st string) string {
+	switch st {
+	case "RUNNING", "LISTEN":
+		return green(st)
+	case "FAILED", "UNHEALTHY", "DEAD":
+		return red(st)
+	case "STARTING", "STOPPING", "RELOADING", "RESTARTING":
+		return yellow(st)
+	default:
+		return dim(st)
 	}
 }
 
@@ -124,21 +184,38 @@ func portList(ports []int) string {
 	if len(ports) == 0 {
 		return "-"
 	}
-	const max = 4
+	const max = 3
 	parts := make([]string, 0, max+1)
 	for i, p := range ports {
 		if i == max {
 			parts = append(parts, fmt.Sprintf("+%d", len(ports)-max))
 			break
 		}
-		parts = append(parts, ":"+strconv.Itoa(p))
+		parts = append(parts, strconv.Itoa(p))
 	}
-	return strings.Join(parts, " ")
+	return strings.Join(parts, ",")
 }
 
-// printSysGrouped renders the terminal view: a header line, then one aligned
-// block per group (DATABASES, WEB SERVERS, …, FAILED).
-func printSysGrouped(r sysinfo.Report, all bool) {
+// sysRows flattens the report's groups into table rows (already ordered by
+// kind, so TYPE reads as a grouping), recording where the failed block starts
+// so the box can set it apart with a separator.
+func sysRows(r sysinfo.Report) (rows [][]string, failed []bool, breaks map[int]bool) {
+	breaks = map[int]bool{}
+	for _, g := range r.Groups() {
+		if g.ID == "failed" {
+			breaks[len(rows)] = true
+		}
+		for _, s := range g.Services {
+			rows = append(rows, sysCells(s, r.Platform))
+			failed = append(failed, s.Failed)
+		}
+	}
+	return rows, failed, breaks
+}
+
+// printSysBox renders the terminal view: a host summary, then one boxed table
+// of services (grouped: databases, caches, web …, failed last).
+func printSysBox(r sysinfo.Report, all bool) {
 	head := []string{bold(r.Host)}
 	if r.OS != "" {
 		head = append(head, r.OS)
@@ -147,98 +224,113 @@ func printSysGrouped(r sysinfo.Report, all bool) {
 		head = append(head, "up "+compactDuration(r.HostUptimeSec))
 	}
 	fmt.Println(strings.Join(head, dim(" · ")))
-
-	groups := r.Groups()
-	if len(groups) == 0 {
-		fmt.Println("\nnothing notable is running (try sm2 sys --all)")
+	if u := hostUsageLine(r.Usage); u != "" {
+		fmt.Println(u)
 	}
 
-	// Measure columns across every group so the whole view lines up.
-	const ncol = 6
-	width := make([]int, ncol)
-	for _, s := range r.Services {
-		for i, c := range sysCells(s) {
-			if l := runeLen(c); l > width[i] {
-				width[i] = l
-			}
+	rows, failedRows, breaks := sysRows(r)
+	if len(rows) == 0 {
+		fmt.Println("\nnothing notable is running (try sm2 sys --all)")
+	} else {
+		right := map[int]bool{3: true, 5: true, 7: true, 8: true}
+		cols := make([]column, len(sysHeaders))
+		for i, h := range sysHeaders {
+			cols[i] = column{strings.ToUpper(h), right[i]}
 		}
+		fmt.Print(renderBoxSections(cols, rows, breaks, func(col int, raw string) string {
+			switch col {
+			case 0:
+				return cyan(raw)
+			case 6:
+				return colorSysStatus(raw)
+			case 7:
+				return colorCPU(raw)
+			case 10:
+				if raw == "none" {
+					return yellow(raw)
+				}
+				return dim(raw)
+			}
+			return raw
+		}))
 	}
 
 	failed := 0
-	for _, g := range groups {
-		label := g.Label
-		switch g.ID {
-		case "failed":
-			label = red(label)
-		case "unmanaged":
-			if r.Platform == "linux" {
-				label = yellow(label + " ⚠") // nothing supervises these
-			} else {
-				label = bold(label)
-			}
-		default:
-			label = bold(label)
-		}
-		fmt.Printf("\n%s\n", label)
-		for _, s := range g.Services {
-			if s.Failed {
-				failed++
-			}
-			cells := sysCells(s)
-			var b strings.Builder
-			b.WriteString("  ")
-			for i, c := range cells {
-				pad := strings.Repeat(" ", width[i]-runeLen(c))
-				switch i {
-				case 0:
-					c = cyan(c)
-				case 4:
-					c = sysStateColor(s, c)
-				case 5:
-					c = dim(c)
-				}
-				b.WriteString(c)
-				if i < ncol-1 {
-					b.WriteString(pad + "   ")
-				}
-			}
-			fmt.Println(b.String())
+	for _, f := range failedRows {
+		if f {
+			failed++
 		}
 	}
-
-	summary := fmt.Sprintf("%d shown", len(r.Services))
+	summary := fmt.Sprintf("%d shown", len(rows))
 	if failed > 0 {
 		summary += " · " + red(fmt.Sprintf("%d failed", failed))
 	}
 	if r.Hidden > 0 && !all {
 		summary += fmt.Sprintf(" · %d routine services hidden (sm2 sys --all)", r.Hidden)
 	}
-	fmt.Printf("\n%s\n", dim(summary))
+	fmt.Println(dim(summary))
 	for _, n := range r.Notes {
 		fmt.Println(dim("note: " + n))
 	}
 }
 
-func sysStateColor(s sysinfo.Service, c string) string {
+// hostUsageLine summarizes machine-wide load, memory and disk use.
+func hostUsageLine(u sysinfo.HostUsage) string {
+	var parts []string
+	if u.Load1 > 0 || u.CPUs > 0 {
+		load := fmt.Sprintf("load %.2f", u.Load1)
+		if u.CPUs > 0 {
+			load += fmt.Sprintf(" (%d cpus)", u.CPUs)
+			if u.Load1 > float64(u.CPUs) {
+				load = yellow(load)
+			}
+		}
+		parts = append(parts, load)
+	}
+	if u.MemTotal > 0 && u.MemUsed > 0 {
+		pct := float64(u.MemUsed) / float64(u.MemTotal) * 100
+		parts = append(parts, usagePct(fmt.Sprintf("mem %s / %s (%.0f%%)",
+			humanizeBytes(u.MemUsed), humanizeBytes(u.MemTotal), pct), pct))
+	}
+	if u.DiskUsedPct > 0 {
+		parts = append(parts, usagePct(fmt.Sprintf("disk %.0f%% used", u.DiskUsedPct), u.DiskUsedPct))
+	}
+	return strings.Join(parts, dim(" · "))
+}
+
+func usagePct(s string, pct float64) string {
 	switch {
-	case s.Failed:
-		return red(c)
-	case strings.HasPrefix(c, "up"):
-		return green(c)
+	case pct >= 90:
+		return red(s)
+	case pct >= 75:
+		return yellow(s)
 	default:
-		return yellow(c)
+		return s
+	}
+}
+
+// colorCPU highlights services using a lot of CPU (in % of one core).
+func colorCPU(raw string) string {
+	v, err := strconv.ParseFloat(strings.TrimSuffix(raw, "%"), 64)
+	switch {
+	case err != nil:
+		return dim(raw)
+	case v >= 90:
+		return red(raw)
+	case v >= 50:
+		return yellow(raw)
+	default:
+		return raw
 	}
 }
 
 // printSysPlain is the pipe-friendly form: one tab-separated row per service.
 func printSysPlain(r sysinfo.Report) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "group\tname\twhat\tports\tmemory\tstate\tsource")
-	for _, g := range r.Groups() {
-		for _, s := range g.Services {
-			c := sysCells(s)
-			fmt.Fprintf(w, "%s\t%s\n", strings.ToLower(g.Label), strings.Join(c, "\t"))
-		}
+	fmt.Fprintln(w, strings.Join(sysHeaders, "\t"))
+	rows, _, _ := sysRows(r)
+	for _, c := range rows {
+		fmt.Fprintln(w, strings.Join(c, "\t"))
 	}
 	w.Flush()
 	for _, n := range r.Notes {
@@ -294,11 +386,24 @@ func runSysDescribe(name string, asJSON bool) error {
 		src += " (" + s.Unit + ")"
 	case s.ContainerID != "":
 		src += " (container " + s.ContainerID + ")"
-	case s.Source == sysinfo.SourceProcess && s.Kind != "listener":
+	case s.Source == sysinfo.SourceProcess && s.Kind != "listener" && r.Platform == "linux":
 		src = "none — not supervised by systemd, docker or sm2"
+	case s.Source == sysinfo.SourceProcess && s.Kind != "listener":
+		src = "not systemd, docker or sm2"
 	}
 	row("managed by", src)
-	row("state", sysUptime(s))
+	state := strings.ToLower(sysStatus(s))
+	if up := sysUptime(s); up != "-" {
+		if strings.HasSuffix(up, "ago") {
+			state += " " + up
+		} else {
+			state += ", up " + up
+		}
+	}
+	if s.State != "" && strings.HasPrefix(s.State, "failed (") {
+		state = s.State + strings.TrimPrefix(state, "failed")
+	}
+	row("state", state)
 	if s.Description != "" && s.Description != s.Image {
 		row("description", s.Description)
 	}
@@ -314,6 +419,9 @@ func runSysDescribe(name string, asJSON bool) error {
 		row("pid", strconv.Itoa(s.PID))
 	}
 	row("user", s.User)
+	if s.CPUPercent != nil {
+		row("cpu", fmt.Sprintf("%.1f%%", *s.CPUPercent))
+	}
 	if s.MemoryBytes > 0 {
 		row("memory", humanizeBytes(s.MemoryBytes))
 	}

@@ -50,6 +50,7 @@ type Service struct {
 	Ports       []int    `json:"ports,omitempty"`
 	Listen      []string `json:"listen,omitempty"` // listen addresses (or docker port mappings)
 	MemoryBytes int64    `json:"memory_bytes,omitempty"`
+	CPUPercent  *float64 `json:"cpu_percent,omitempty"` // % of one core; nil = not measurable
 	UptimeSec   int64    `json:"uptime_seconds,omitempty"`
 	SinceSec    int64    `json:"since_seconds,omitempty"` // seconds since a failure/exit
 	Command     string   `json:"command,omitempty"`
@@ -165,6 +166,7 @@ type Report struct {
 	OS            string    `json:"os,omitempty"`
 	Platform      string    `json:"platform"`
 	HostUptimeSec int64     `json:"host_uptime_seconds,omitempty"`
+	Usage         HostUsage `json:"usage"`
 	Services      []Service `json:"services"`
 	Hidden        int       `json:"hidden"` // routine services left out (see Options.All)
 	Notes         []string  `json:"notes,omitempty"`
@@ -254,8 +256,12 @@ type env struct {
 	run      func(name string, args ...string) ([]byte, error)
 	readFile func(path string) ([]byte, error)
 	readlink func(path string) (string, error)
+	readDir  func(path string) ([]string, error) // entry names
 	has      func(name string) bool
 	now      time.Time
+	clock    func() time.Time // for CPU sampling; now stays fixed per pass
+	sleep    func(time.Duration)
+	diskUsed func(path string) float64
 }
 
 func hostEnv() env {
@@ -265,6 +271,17 @@ func hostEnv() env {
 		run:      runCmd,
 		readFile: os.ReadFile,
 		readlink: os.Readlink,
+		readDir: func(path string) ([]string, error) {
+			f, err := os.Open(path)
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+			return f.Readdirnames(-1)
+		},
+		clock:    time.Now,
+		sleep:    time.Sleep,
+		diskUsed: statfsUsed,
 		has: func(name string) bool {
 			_, err := exec.LookPath(name)
 			return err == nil
@@ -285,6 +302,9 @@ func runCmd(name string, args ...string) ([]byte, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return out, fmt.Errorf("timed out after %s", cmdTimeout)
+		}
 		if msg := firstLine(stderr.String()); msg != "" {
 			err = fmt.Errorf("%s", msg)
 		}
@@ -319,6 +339,10 @@ func discover(e env, opts Options) Report {
 		mu.Unlock()
 	}
 
+	// CPU use is the difference between two /proc samples; take the first now
+	// so the collectors below fill most of the measuring window.
+	cpu0 := sampleCPU(e)
+
 	// The collectors are independent; run them side by side.
 	var (
 		procs      map[int]*proc
@@ -334,6 +358,19 @@ func discover(e env, opts Options) Report {
 	go func() { defer wg.Done(); containers = readDocker(e, note) }()
 	wg.Wait()
 	r.OS, r.HostUptimeSec = osInfo(e)
+	r.Usage = hostUsage(e)
+
+	// Which unit or container each process belongs to (Linux cgroups).
+	cg := map[int]cgroupInfo{}
+	if e.goos == "linux" {
+		for pid := range procs {
+			if data, err := e.readFile(fmt.Sprintf("/proc/%d/cgroup", pid)); err == nil {
+				var c cgroupInfo
+				c.unit, c.container, c.userUnit = cgroupOwner(data)
+				cg[pid] = c
+			}
+		}
+	}
 
 	apps := sm2Services(opts.Apps, procs)
 	all := append(append(append([]*Service{}, apps...), units...), containers...)
@@ -379,7 +416,7 @@ func discover(e env, opts Options) Report {
 		var owner *Service
 		skip := false
 		for _, pid := range l.pids {
-			o, sk := e.attribute(pid, procs, appByPID, byUnit, containers)
+			o, sk := attribute(e.goos, pid, procs, cg, appByPID, byUnit, containers)
 			if sk {
 				skip = true
 				break
@@ -439,6 +476,17 @@ func discover(e env, opts Options) Report {
 
 	lookupVersions(e, all)
 
+	cpu := psCPU(procs)
+	if cpu0 != nil {
+		if wait := cpuWindow - e.clock().Sub(cpu0.at); wait > 0 {
+			e.sleep(wait)
+		}
+		if cpu1 := sampleCPU(e); cpu1 != nil {
+			cpu = cpuPercents(cpu0, cpu1)
+		}
+	}
+	applyUsage(all, procs, cg, cpu)
+
 	for _, s := range all {
 		sort.Ints(s.Ports)
 		if opts.All || s.notable() {
@@ -471,10 +519,16 @@ func groupRank(id string) int {
 	return len(groupOrder)
 }
 
+// cgroupInfo is the systemd unit or Docker container a process belongs to.
+type cgroupInfo struct {
+	unit, container string
+	userUnit        bool
+}
+
 // attribute finds the service owning pid. skip is true for processes whose
 // sockets are reported elsewhere (docker-proxy forwards container ports).
-func (e env) attribute(pid int, procs map[int]*proc, appByPID map[int]*Service,
-	byUnit map[string]*Service, containers []*Service) (owner *Service, skip bool) {
+func attribute(goos string, pid int, procs map[int]*proc, cg map[int]cgroupInfo,
+	appByPID map[int]*Service, byUnit map[string]*Service, containers []*Service) (owner *Service, skip bool) {
 	p := procs[pid]
 	if p != nil && filepath.Base(p.comm) == "docker-proxy" {
 		return nil, true
@@ -498,14 +552,14 @@ func (e env) attribute(pid int, procs map[int]*proc, appByPID map[int]*Service,
 		cur = q.ppid
 	}
 
-	if e.goos != "linux" {
+	if goos != "linux" {
 		return nil, false
 	}
-	data, err := e.readFile(fmt.Sprintf("/proc/%d/cgroup", pid))
-	if err != nil {
+	c, ok := cg[pid]
+	if !ok {
 		return nil, false
 	}
-	unit, container, userUnit := cgroupOwner(data)
+	unit, container, userUnit := c.unit, c.container, c.userUnit
 	if container != "" {
 		for _, c := range containers {
 			if strings.HasPrefix(container, c.ContainerID) {

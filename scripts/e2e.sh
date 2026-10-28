@@ -188,10 +188,13 @@ if command -v python3 >/dev/null 2>&1; then
   $SM2 start sysweb -- python3 -m http.server "$PORT" --bind 127.0.0.1 >/dev/null
   sleep 2
   SYS="$($SM2 sys)"
-  have "sys lists sm2 apps group" "$SYS" "sm2 apps"
-  have "sys shows the app's listening port" "$SYS" ":$PORT"
+  have "sys has usage columns" "$SYS" "cpu"
+  have "sys lists the app as managed by sm2" "$(printf '%s\n' "$SYS" | grep sysweb)" "sm2"
+  have "sys shows the app's listening port" "$SYS" "$PORT"
+  have "sys box view has CPU/MEM headers" "$(SM2_FORCE_COLOR=1 NO_COLOR=1 $SM2 sys)" "│ MANAGED BY │"
   have "ls -a is the same view" "$($SM2 ls -a)" "sysweb"
   have "sys --json tags the source" "$($SM2 sys --json)" '"source": "sm2"'
+  have "sys --json reports cpu" "$($SM2 sys --json)" '"cpu_percent"'
   SYSD="$($SM2 sys sysweb)"
   have "sys <name> describes one service" "$SYSD" "managed by"
   have "sys <name> shows listen address" "$SYSD" "127.0.0.1:$PORT"

@@ -11,6 +11,7 @@ import (
 type proc struct {
 	pid, ppid, pgid int
 	rssKB           int64
+	cpuPct          float64 // ps %cpu: a recent average on macOS, lifetime on Linux
 	elapsed         time.Duration
 	user            string
 	comm            string // executable name (a full path on macOS)
@@ -26,7 +27,7 @@ func readProcs(e env) map[int]*proc {
 	if e.goos == "linux" {
 		user = "user:32=" // procps truncates names longer than 8 chars otherwise
 	}
-	out, _ := e.run("ps", "-A", "-o", "pid=,ppid=,pgid=,rss=,etime=,"+user+",args=")
+	out, _ := e.run("ps", "-A", "-o", "pid=,ppid=,pgid=,rss=,%cpu=,etime=,"+user+",args=")
 	procs := parsePS(out)
 	if c, _ := e.run("ps", "-A", "-o", "pid=,comm="); len(c) > 0 {
 		parseComm(c, procs)
@@ -37,7 +38,7 @@ func readProcs(e env) map[int]*proc {
 func parsePS(out []byte) map[int]*proc {
 	procs := map[int]*proc{}
 	for _, line := range strings.Split(string(out), "\n") {
-		f, rest, ok := splitFields(line, 6)
+		f, rest, ok := splitFields(line, 7)
 		if !ok {
 			continue
 		}
@@ -45,11 +46,12 @@ func parsePS(out []byte) map[int]*proc {
 		if err != nil {
 			continue
 		}
-		p := &proc{pid: pid, user: f[5], args: rest}
+		p := &proc{pid: pid, user: f[6], args: rest}
 		p.ppid, _ = strconv.Atoi(f[1])
 		p.pgid, _ = strconv.Atoi(f[2])
 		p.rssKB, _ = strconv.ParseInt(f[3], 10, 64)
-		p.elapsed = parseEtime(f[4])
+		p.cpuPct, _ = strconv.ParseFloat(f[4], 64)
+		p.elapsed = parseEtime(f[5])
 		if p.comm == "" {
 			p.comm = firstWord(rest)
 		}
@@ -124,17 +126,25 @@ func parseEtime(s string) time.Duration {
 // children). Falls back to the single process if it isn't a group leader.
 func groupRSS(procs map[int]*proc, pgid int) int64 {
 	var kb int64
-	for _, p := range procs {
-		if p.pgid == pgid {
-			kb += p.rssKB
-		}
-	}
-	if kb == 0 {
-		if p := procs[pgid]; p != nil {
-			kb = p.rssKB
-		}
+	for _, pid := range groupPIDs(procs, pgid) {
+		kb += procs[pid].rssKB
 	}
 	return kb * 1024
+}
+
+// groupPIDs returns the members of process group pgid, or just pgid itself
+// when it isn't a group leader.
+func groupPIDs(procs map[int]*proc, pgid int) []int {
+	var out []int
+	for _, p := range procs {
+		if p.pgid == pgid {
+			out = append(out, p.pid)
+		}
+	}
+	if len(out) == 0 && procs[pgid] != nil {
+		out = []int{pgid}
+	}
+	return out
 }
 
 // procName is a short display name for a process. comm is usually the binary

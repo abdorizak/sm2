@@ -105,34 +105,33 @@ Run `sm2 <command> --help` for usage, or see the full reference in the docs site
 
 `sm2 sys` shows what's on the machine, not just the apps sm2 started. You don't
 have to name anything: it finds systemd services, Docker containers, your sm2
-apps and any other process listening on a port, then says what each one is.
+apps and any other process listening on a port, then says what each one is and
+how much CPU and memory it is using. A line about the whole host (load, memory,
+disk) sits on top.
 
 ```
 $ sm2 sys
 web-01 · Ubuntu 24.04.1 LTS · up 12D
-
-DATABASES
-  postgresql@16-main   PostgreSQL 16.4          :5432      209.8MB   up 12D   systemd
-
-CACHES
-  redis-server         Redis 7.0.15             :6379      8.1MB     up 12D   systemd
-
-WEB SERVERS
-  nginx                nginx 1.24.0             :80 :443   11.7MB    up 3D    systemd
-
-CONTAINERS
-  metabase             metabase/metabase:v0.50  :3000      -         up 2D    docker
-
-SM2 APPS
-  api                  ./api                    :8080      21.5MB    up 5h    sm2
-
-UNMANAGED ⚠
-  node                 node server.js           :4000      87.9MB    up 9D    pid 4412
-
-FAILED
-  mysql                MySQL 8.0.39             -          -         failed 2h ago   systemd
-
-7 shown · 1 failed · 41 routine services hidden (sm2 sys --all)
+load 0.42 (4 cpus) · mem 2.9GB / 7.6GB (38%) · disk 41% used
+┌────────────────────┬───────────┬────────────────────────────────┬──────┬────────┬────────┬─────────┬────────┬─────────┬─────────────────┬────────────┐
+│ NAME               │ TYPE      │ SERVICE                        │  PID │ PORTS  │ UPTIME │ STATUS  │    CPU │     MEM │ USER            │ MANAGED BY │
+├────────────────────┼───────────┼────────────────────────────────┼──────┼────────┼────────┼─────────┼────────┼─────────┼─────────────────┼────────────┤
+│ postgresql@16-main │ database  │ PostgreSQL 16.4                │  812 │ 5432   │    12D │ RUNNING │  30.0% │ 209.8MB │ postgres        │ systemd    │
+│ redis-server       │ cache     │ Redis 7.0.15                   │  790 │ 6379   │    12D │ RUNNING │   0.0% │   8.1MB │ redis           │ systemd    │
+│ nginx              │ web       │ nginx 1.24.0                   │  901 │ 80,443 │     3D │ RUNNING │  10.0% │  11.7MB │ root            │ systemd    │
+│ systemd-resolved   │ dns       │ systemd-resolved 255.4         │  600 │ 53     │    12D │ RUNNING │   0.0% │   8.6MB │ systemd-resolve │ systemd    │
+│ ssh                │ remote    │ OpenSSH                        │  700 │ 22     │    12D │ RUNNING │   0.0% │   5.7MB │ root            │ systemd    │
+│ docker             │ runtime   │ Docker Engine 24.0.7           │  655 │ -      │    12D │ RUNNING │   0.0% │  94.4MB │ root            │ systemd    │
+│ metabase           │ container │ metabase/metabase:v0.50.1      │    - │ 3000   │     2D │ RUNNING │  50.0% │ 625.0MB │ -               │ docker     │
+│ api                │ app       │ ./api                          │ 3000 │ 8080   │     5h │ RUNNING │   4.0% │  21.5MB │ xman            │ sm2        │
+│ node               │ process   │ node server.js                 │ 4412 │ 4000   │     9D │ RUNNING │ 100.0% │  87.9MB │ xman            │ none       │
+│ :9000              │ port      │ owner not visible (run with s… │    - │ 9000   │      - │ LISTEN  │      - │       - │ -               │ ?          │
+│ myworker           │ service   │ user service                   │ 5000 │ 9999   │     1h │ RUNNING │   0.0% │  14.6MB │ xman            │ systemd    │
+├────────────────────┼───────────┼────────────────────────────────┼──────┼────────┼────────┼─────────┼────────┼─────────┼─────────────────┼────────────┤
+│ mysql              │ database  │ MySQL 8.0.39                   │    - │ -      │ 2h ago │ FAILED  │      - │       - │ -               │ systemd    │
+│ old-job            │ container │ jobs:latest                    │    - │ -      │ 3h ago │ FAILED  │      - │       - │ -               │ docker     │
+└────────────────────┴───────────┴────────────────────────────────┴──────┴────────┴────────┴─────────┴────────┴─────────┴─────────────────┴────────────┘
+13 shown · 2 failed · 4 routine services hidden (sm2 sys --all)
 ```
 
 ```sh
@@ -143,8 +142,12 @@ sm2 sys --json          # machine-readable
 sudo sm2 sys            # full detail, incl. ports and logs owned by other users
 ```
 
-Versions come from the package manager (dpkg/rpm, or Homebrew on macOS), and
-memory from systemd's cgroup accounting where available. **Unmanaged** lists
+Versions come from the package manager (dpkg/rpm, or Homebrew on macOS).
+**CPU** is real current use: on Linux, sm2 samples `/proc` twice, half a second
+apart, and adds up every process in the service's cgroup (all Postgres
+backends, all nginx workers, everything in a container). It's shown as % of
+one core, like `top`. **Memory** comes from systemd's cgroup accounting where
+available, else the sum over the service's processes. **Unmanaged** lists
 processes that listen on a port with nothing supervising them, like a
 `node server.js &` someone left running in tmux. Without root, sm2 still matches
 other users' ports to services by well-known port number. The full view relies
