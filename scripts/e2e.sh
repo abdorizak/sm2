@@ -212,6 +212,72 @@ have "dump file written" "$(cat "$SM2_HOME/dump.json")" '"name"'
 RES="$($SM2 resurrect)"
 have "resurrect restores apps" "$RES" "RUNNING"
 
+section "env files (--env-file)"
+ENVF="$WORK/app.env"
+printf '# settings\nGREETING="hello from file"\nexport MODE=file\n' > "$ENVF"
+$SM2 start envfileapp --env-file "$ENVF" -e MODE=flag --cmd 'echo "G=$GREETING M=$MODE I=$NODE_APP_INSTANCE"; sleep 30' >/dev/null
+sleep 1
+have "env file values reach the app" "$($SM2 logs envfileapp)" "G=hello from file"
+have "-e beats the env file" "$($SM2 logs envfileapp)" "M=flag"
+have "instance index is set" "$($SM2 logs envfileapp)" "I=0"
+DESC="$($SM2 describe envfileapp)"
+have "describe lists env file keys" "$DESC" "GREETING"
+if printf '%s' "$DESC" | grep -qF "hello from file"; then no "describe leaked an env file value"; else ok "describe hides env file values"; fi
+printf 'GREETING=edited\n' > "$ENVF"
+$SM2 restart envfileapp >/dev/null; sleep 1
+have "env file re-read on restart" "$($SM2 logs envfileapp)" "G=edited"
+if $SM2 start bad --env-file "$WORK/nope.env" --cmd true >/dev/null 2>&1; then no "missing env file should fail"; else ok "missing env file fails at start"; fi
+$SM2 delete envfileapp >/dev/null
+
+section "restart default (config app without a policy)"
+mkdir -p "$WORK/cfgdefault"
+printf 'apps:\n  crashy:\n    command: "sleep 1; exit 1"\n' > "$WORK/cfgdefault/sm2.yaml"
+$SM2 config reload -c "$WORK/cfgdefault/sm2.yaml" >/dev/null
+sleep 4
+have "crashing config app is restarted (on-failure)" "$($SM2 status --json)" '"name": "crashy"'
+if $SM2 status --json | python3 -c 'import json,sys; a=[x for x in json.load(sys.stdin) if x["name"]=="crashy"][0]; sys.exit(0 if a["restarts"]>0 else 1)'; then ok "restart counter went up"; else no "config app without policy was not restarted"; fi
+$SM2 delete crashy >/dev/null
+
+section "health checks (--health)"
+FLAG="$WORK/healthy.flag"
+$SM2 start hc --health "test -f $FLAG" --health-interval 300ms --health-retries 2 --cmd 'sleep 60' >/dev/null
+sleep 3
+if $SM2 status --json | python3 -c 'import json,sys; a=[x for x in json.load(sys.stdin) if x["name"]=="hc"][0]; sys.exit(0 if a["restarts"]>0 else 1)'; then ok "failing health check restarts the app"; else no "failing health check did not restart the app"; fi
+touch "$FLAG"; sleep 1.5
+have "describe shows health" "$($SM2 describe hc)" "healthy"
+$SM2 delete hc >/dev/null
+
+section "pm2 import (ecosystem.config.js)"
+if command -v node >/dev/null 2>&1; then
+  ECO="$WORK/pm2proj"; mkdir -p "$ECO"
+  printf 'setInterval(() => {}, 1000); console.log("inst", process.env.NODE_APP_INSTANCE, process.env.APP_MODE);\n' > "$ECO/server.js"
+  cat > "$ECO/ecosystem.config.js" <<'JS'
+module.exports = {
+  apps: [{
+    name: "pm2web",
+    script: "./server.js",
+    instances: 2,
+    max_restarts: 5,
+    out_file: "/tmp/never-used.log",
+    env: { APP_MODE: "dev" },
+    env_production: { APP_MODE: "prod" },
+  }],
+};
+JS
+  IMP="$($SM2 import "$ECO/ecosystem.config.js" --env production)"
+  have "import reports converted apps" "$IMP" "converted 1 app"
+  have "import notes unsupported options" "$IMP" "out_file ignored"
+  have "import writes sm2.yaml" "$(cat "$ECO/sm2.yaml")" "command: node ./server.js"
+  have "imported config validates" "$($SM2 config validate -c "$ECO/sm2.yaml")" "valid (2 app(s))"
+  $SM2 config reload -c "$ECO/sm2.yaml" >/dev/null; sleep 1.5
+  have "imported instance 0 runs with env_production" "$($SM2 logs pm2web-0)" "inst 0 prod"
+  have "imported instance 1 gets NODE_APP_INSTANCE=1" "$($SM2 logs pm2web-1)" "inst 1 prod"
+  if $SM2 import "$ECO/ecosystem.config.js" >/dev/null 2>&1; then no "import should refuse to overwrite"; else ok "import won't overwrite without --force"; fi
+  $SM2 delete pm2web-0 >/dev/null; $SM2 delete pm2web-1 >/dev/null
+else
+  printf "  ${DIM}(skipped: node not found)${OFF}\n"
+fi
+
 section "startup / unstartup (isolated HOME)"
 FAKE="$WORK/fakehome"; mkdir -p "$FAKE"
 OS="$(uname -s)"

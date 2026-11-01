@@ -363,11 +363,15 @@ func specEqual(a, b ipc.AppSpec) bool {
 		a.NoAutostart != b.NoAutostart || a.KillTimeoutMs != b.KillTimeoutMs ||
 		a.RestartDelayMs != b.RestartDelayMs || a.ExpBackoff != b.ExpBackoff ||
 		a.MaxMemoryBytes != b.MaxMemoryBytes || a.Watch != b.Watch ||
-		a.CronRestart != b.CronRestart {
+		a.CronRestart != b.CronRestart || a.Instance != b.Instance ||
+		a.InstanceVar != b.InstanceVar || a.MinUptimeMs != b.MinUptimeMs ||
+		a.HealthCheck != b.HealthCheck || a.HealthIntervalMs != b.HealthIntervalMs ||
+		a.HealthTimeoutMs != b.HealthTimeoutMs || a.HealthRetries != b.HealthRetries {
 		return false
 	}
 	return mapsEqual(a.Env, b.Env) && slicesEqual(a.WatchPaths, b.WatchPaths) &&
-		slicesEqual(a.IgnoreWatch, b.IgnoreWatch)
+		slicesEqual(a.IgnoreWatch, b.IgnoreWatch) && slicesEqual(a.EnvFiles, b.EnvFiles) &&
+		slicesEqual(a.FilterEnv, b.FilterEnv)
 }
 
 func mapsEqual(a, b map[string]string) bool {

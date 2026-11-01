@@ -81,6 +81,9 @@ type app struct {
 	stopping   bool
 	restarting bool
 	baseEnv    []string // overrides the inherited environment when non-nil
+	unstable   int      // consecutive quick crashes (see MinUptimeMs)
+	health     string   // healthy | unhealthy | "" (no check, or none since launch)
+	healthErr  string
 
 	quit      chan struct{}
 	closeOnce sync.Once
@@ -109,6 +112,9 @@ func (a *app) startMonitors() {
 	}
 	if a.spec.Watch {
 		go a.monitorWatch()
+	}
+	if a.spec.HealthCheck != "" {
+		go a.monitorHealth()
 	}
 	if a.spec.CronRestart != "" {
 		sched, err := parseCron(a.spec.CronRestart)
@@ -187,9 +193,17 @@ func (a *app) launchLocked() error {
 		return err
 	}
 
+	env, err := a.environ()
+	if err != nil {
+		stdout.Close()
+		stderr.Close()
+		a.state = StateFailed
+		return err
+	}
+
 	cmd := exec.Command("sh", "-c", a.spec.Command)
 	cmd.Dir = a.spec.Dir
-	cmd.Env = a.environ()
+	cmd.Env = env
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	// Run in its own process group so we can signal the whole tree.
@@ -206,6 +220,7 @@ func (a *app) launchLocked() error {
 	a.pid = cmd.Process.Pid
 	a.state = StateRunning
 	a.startedAt = time.Now()
+	a.health, a.healthErr = "", ""
 	a.logger.Info().Int("pid", a.pid).Str("command", a.spec.Command).Msg("started")
 
 	go func() {
@@ -239,8 +254,14 @@ func (a *app) onExit(cmd *exec.Cmd, werr error) {
 		return
 	}
 
+	// With min_uptime set (pm2's model), only quick consecutive crashes count
+	// toward max_retries: a run that lasted min_uptime resets the streak.
+	if a.spec.MinUptimeMs > 0 && time.Since(a.startedAt) >= time.Duration(a.spec.MinUptimeMs)*time.Millisecond {
+		a.unstable = 0
+	}
 	if a.canRestartLocked(werr) {
 		a.restarts++
+		a.unstable++
 		a.state = StateRestarting
 		restarts := a.restarts
 		delay := a.backoff(restarts)
@@ -285,16 +306,20 @@ func exitMessage(werr error) string {
 // canRestartLocked decides whether the policy allows another restart.
 // Caller must hold a.mu.
 func (a *app) canRestartLocked(werr error) bool {
-	if a.spec.MaxRetries > 0 && a.restarts >= a.spec.MaxRetries {
+	count := a.restarts
+	if a.spec.MinUptimeMs > 0 {
+		count = a.unstable
+	}
+	if a.spec.MaxRetries > 0 && count >= a.spec.MaxRetries {
 		return false
 	}
 	switch a.spec.Restart {
 	case "always":
 		return true
-	case "on-failure":
-		return werr != nil
-	default: // "never" or empty
+	case "never":
 		return false
+	default: // "on-failure", or unset
+		return werr != nil
 	}
 }
 
@@ -346,7 +371,7 @@ func (a *app) restart(reset bool, reason string) error {
 	a.stopping = false
 	a.restarting = false
 	if reset {
-		a.restarts = 0
+		a.restarts, a.unstable = 0, 0
 	}
 	err := a.launchLocked()
 	a.mu.Unlock()
@@ -375,7 +400,7 @@ func (a *app) triggerRestart(reason string) {
 // reset zeroes the restart counter for a stopped/failed app.
 func (a *app) reset() {
 	a.mu.Lock()
-	a.restarts = 0
+	a.restarts, a.unstable = 0, 0
 	a.mu.Unlock()
 }
 
@@ -402,6 +427,9 @@ func (a *app) status() ipc.AppStatus {
 		User:      agentUser,
 		Watching:  a.spec.Watch,
 		Command:   a.spec.Command,
+	}
+	if a.state == StateRunning {
+		st.Health, st.HealthError = a.health, a.healthErr
 	}
 	if a.state == StateRunning {
 		st.Uptime = shortDuration(time.Since(a.startedAt))
@@ -553,19 +581,35 @@ func (a *app) monitorCron(sched cronSchedule) {
 	}
 }
 
-// environ builds the process environment: a base (the agent's environment, or a
-// refreshed one from --update-env) plus the app's explicit overrides, which win.
-// Caller must hold a.mu.
-func (a *app) environ() []string {
+// environ builds the process environment, lowest priority first: a base (the
+// agent's environment, or a refreshed one from --update-env), the app's env
+// files (re-read on every launch, so edits apply on restart), the instance
+// index, then the app's explicit overrides. For duplicate keys the last one
+// wins. Caller must hold a.mu.
+func (a *app) environ() ([]string, error) {
 	base := a.baseEnv
 	if base == nil {
 		base = os.Environ()
 	}
-	env := append([]string(nil), base...)
+	env := filterEnv(base, a.spec.FilterEnv)
+	if len(a.spec.EnvFiles) > 0 {
+		pairs, err := loadEnvFiles(a.spec.EnvFiles)
+		if err != nil {
+			return nil, err
+		}
+		env = append(env, pairs...)
+	}
+	// pm2-compatible instance index, so code like
+	// `if (process.env.NODE_APP_INSTANCE === "0")` keeps working.
+	idx := fmt.Sprint(a.spec.Instance)
+	env = append(env, "NODE_APP_INSTANCE="+idx, "SM2_INSTANCE="+idx)
+	if v := a.spec.InstanceVar; v != "" {
+		env = append(env, v+"="+idx)
+	}
 	for k, v := range a.spec.Env {
 		env = append(env, k+"="+v)
 	}
-	return env
+	return env, nil
 }
 
 // setBaseEnv refreshes the inherited environment used on the next launch.

@@ -33,6 +33,12 @@ func newStartCmd() *cobra.Command {
 		watch         bool
 		ignoreWatch   []string
 		cronRestart   string
+		envFiles      []string
+		minUptime     time.Duration
+		health        string
+		healthEvery   time.Duration
+		healthTimeout time.Duration
+		healthRetries int
 	)
 
 	cmd := &cobra.Command{
@@ -40,8 +46,10 @@ func newStartCmd() *cobra.Command {
 		Short: "Start and supervise an application",
 		Args:  cobra.MinimumNArgs(1),
 		Example: "  sm2 start web -- npm run start\n" +
-			"  sm2 start api -- ./api --port 8080 --restart always\n" +
-			"  sm2 start dash -- yarn start -i 2\n" +
+			"  sm2 start api --restart always -- ./api --port 8080\n" +
+			"  sm2 start dash -i 2 -- yarn start\n" +
+			"  sm2 start api --env-file /etc/api/.env -- ./api\n" +
+			"  sm2 start api --health http://127.0.0.1:8080/health -- ./api\n" +
 			"  sm2 start job --cmd \"./job && echo done\"   # --cmd for shell one-liners",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// The command is passed positionally after the name
@@ -82,6 +90,20 @@ func newStartCmd() *cobra.Command {
 				restart = "never"
 			}
 
+			// Env files are resolved against where sm2 was run, like --dir,
+			// and must exist now so a typo fails here rather than at launch.
+			var absEnvFiles []string
+			for _, f := range envFiles {
+				abs, err := filepath.Abs(f)
+				if err != nil {
+					return err
+				}
+				if _, err := os.Stat(abs); err != nil {
+					return fmt.Errorf("env file %s: %w", f, err)
+				}
+				absEnvFiles = append(absEnvFiles, abs)
+			}
+
 			var maxMemBytes int64
 			if maxMemory != "" {
 				maxMemBytes, err = parseBytes(maxMemory)
@@ -112,15 +134,24 @@ func newStartCmd() *cobra.Command {
 				Watch:          watch,
 				IgnoreWatch:    ignoreWatch,
 				CronRestart:    cronRestart,
+				EnvFiles:       absEnvFiles,
+				MinUptimeMs:    int(minUptime / time.Millisecond),
+			}
+			if health != "" {
+				base.HealthCheck = health
+				base.HealthIntervalMs = int(healthEvery / time.Millisecond)
+				base.HealthTimeoutMs = int(healthTimeout / time.Millisecond)
+				base.HealthRetries = healthRetries
 			}
 
 			if instances < 1 {
 				instances = 1
 			}
 			names := instanceNames(args[0], instances)
-			for _, name := range names {
+			for i, name := range names {
 				spec := base
 				spec.Name = name
+				spec.Instance = i
 				resp, err := request(ipc.Request{Action: ipc.ActionStart, App: &spec})
 				if err != nil {
 					return err
@@ -153,6 +184,12 @@ func newStartCmd() *cobra.Command {
 	f.BoolVar(&watch, "watch", false, "restart when files change")
 	f.StringArrayVar(&ignoreWatch, "ignore-watch", nil, "path fragment to ignore when watching (repeatable)")
 	f.StringVar(&cronRestart, "cron-restart", "", "restart on a cron schedule (5-field, e.g. \"0 3 * * *\")")
+	f.DurationVar(&minUptime, "min-uptime", 0, "with --max-retries, only runs shorter than this count as failures (e.g. 10s)")
+	f.StringArrayVar(&envFiles, "env-file", nil, "load variables from a .env file (repeatable; re-read on every restart)")
+	f.StringVar(&health, "health", "", "health check: http(s)://URL, tcp://host:port, or a shell command")
+	f.DurationVar(&healthEvery, "health-interval", 0, "time between health checks (default 30s)")
+	f.DurationVar(&healthTimeout, "health-timeout", 0, "time a single check may take (default 5s)")
+	f.IntVar(&healthRetries, "health-retries", 0, "consecutive failures before restarting (default 3)")
 	return cmd
 }
 

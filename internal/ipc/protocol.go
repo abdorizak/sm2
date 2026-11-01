@@ -68,13 +68,18 @@ type Request struct {
 
 // AppSpec describes an application the agent should manage.
 type AppSpec struct {
-	Name       string            `json:"name"`
-	Command    string            `json:"command"`
-	Dir        string            `json:"dir,omitempty"`
-	Namespace  string            `json:"namespace,omitempty"`
-	Env        map[string]string `json:"env,omitempty"`
-	Restart    string            `json:"restart,omitempty"` // always | on-failure | never
-	MaxRetries int               `json:"max_retries,omitempty"`
+	Name        string            `json:"name"`
+	Command     string            `json:"command"`
+	Dir         string            `json:"dir,omitempty"`
+	Namespace   string            `json:"namespace,omitempty"`
+	Env         map[string]string `json:"env,omitempty"`
+	Restart     string            `json:"restart,omitempty"` // always | on-failure (default) | never
+	MaxRetries  int               `json:"max_retries,omitempty"`
+	EnvFiles    []string          `json:"env_files,omitempty"`     // .env files, re-read on every launch
+	Instance    int               `json:"instance,omitempty"`      // index among an app's instances (NODE_APP_INSTANCE)
+	InstanceVar string            `json:"instance_var,omitempty"`  // extra variable that gets the index (pm2 instance_var)
+	FilterEnv   []string          `json:"filter_env,omitempty"`    // drop inherited vars with these prefixes ("*" = all)
+	MinUptimeMs int               `json:"min_uptime_ms,omitempty"` // runs shorter than this count toward MaxRetries
 
 	// Lifecycle tuning
 	NoAutostart    bool `json:"no_autostart,omitempty"`
@@ -88,6 +93,14 @@ type AppSpec struct {
 	WatchPaths     []string `json:"watch_paths,omitempty"`
 	IgnoreWatch    []string `json:"ignore_watch,omitempty"`
 	CronRestart    string   `json:"cron_restart,omitempty"`
+
+	// Health check: an http(s):// URL, tcp://host:port, or a shell command
+	// that must exit 0. After HealthRetries consecutive failures the app is
+	// restarted.
+	HealthCheck      string `json:"health_check,omitempty"`
+	HealthIntervalMs int    `json:"health_interval_ms,omitempty"`
+	HealthTimeoutMs  int    `json:"health_timeout_ms,omitempty"`
+	HealthRetries    int    `json:"health_retries,omitempty"`
 }
 
 // Response is the agent's reply to a Request.
@@ -116,6 +129,8 @@ type AppStatus struct {
 	User        string  `json:"user,omitempty"`
 	Watching    bool    `json:"watching"`
 	Command     string  `json:"command"`
+	Health      string  `json:"health,omitempty"`       // healthy | unhealthy ("" = no check yet)
+	HealthError string  `json:"health_error,omitempty"` // why the last check failed
 }
 
 // AppDetail is the full picture of one app, returned by describe.

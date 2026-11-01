@@ -25,7 +25,7 @@ func newSysCmd() *cobra.Command {
 		Long: "Discover and describe what is running on this machine — no names needed.\n\n" +
 			"sm2 sys finds systemd services (PostgreSQL, MySQL, Redis, nginx, …), Docker\n" +
 			"containers, your sm2 apps, and any other process listening on a port, then\n" +
-			"groups them by kind with version, ports, memory and uptime. Failed services\n" +
+			"groups them by kind with version, ports, CPU, memory and uptime. Failed services\n" +
 			"are listed last. Routine system units are hidden unless you pass --all.\n\n" +
 			"Pass a name to describe one service in detail, including its recent logs.\n" +
 			"Run with sudo to see ports and logs owned by other users.",

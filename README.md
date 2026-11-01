@@ -83,6 +83,10 @@ sm2 start bot -e TOKEN=xoxb-… -- node telegram-bot.js
   you naming anything.
 - **Declarative config** — describe your stack in `sm2.yaml`; `config reload`
   reconciles the running set (start new, stop removed, restart changed).
+- **pm2 migration** — `sm2 import ecosystem.config.js` converts a pm2 setup to
+  `sm2.yaml`, flagging anything that doesn't carry over.
+- **Env files & health checks** — load `.env` files from anywhere, and restart
+  apps whose HTTP/TCP/command health check keeps failing.
 - **Restart triggers** — `--max-memory-restart`, `--watch` (file changes),
   `--cron-restart` (schedule).
 - **Reboot survival & self-healing** — the agent auto-saves its live process
@@ -97,7 +101,7 @@ sm2 start bot -e TOKEN=xoxb-… -- node telegram-bot.js
 |---|---|
 | `start` `stop` `restart` `delete` `reset` `signal` | lifecycle (target a name, `all`, or `--namespace`) |
 | `status` (`ls`/`ps`) `sys` `describe` `logs` `flush` `ping` | inspect |
-| `config` `notify` `set` `save` `resurrect` `startup` `unstartup` `kill` `update` | config & boot |
+| `config` `import` `notify` `set` `save` `resurrect` `startup` `unstartup` `kill` `update` | config & boot |
 
 Run `sm2 <command> --help` for usage, or see the full reference in the docs site.
 
@@ -222,10 +226,38 @@ logs:
   interval: "0 0 * * *"   # optional
 ```
 
+## Migrating from pm2
+
+Already have an `ecosystem.config.js`? Convert it instead of rewriting it:
+
+```sh
+sm2 import ecosystem.config.js --env production   # writes sm2.yaml next to it
+sm2 config validate -c sm2.yaml
+pm2 delete ecosystem.config.js                    # stop the pm2 copies first (ports!)
+sm2 config reload -c sm2.yaml
+sm2 save && sm2 startup && pm2 unstartup          # survive reboots with sm2, not pm2
+```
+
+`sm2 import` evaluates the file with Node exactly as pm2 does (`.js`, `.cjs`,
+`.mjs`, `.json` and `.yml` all work) and converts `script`/`args`/`interpreter`,
+`cwd`, `env` + `env_<name>`, `instances`, `autorestart`, `max_restarts` +
+`min_uptime`, `max_memory_restart`, `kill_timeout`, `restart_delay`, `watch`,
+`cron_restart`, `namespace` and more. Options with no sm2 equivalent (log file
+paths, `wait_ready`, `exec_mode: cluster`, …) are listed as notes and written as
+comments above the app they concern.
+
+Differences to know about: pm2 restarts on *any* exit, so imported apps get
+`restart.policy: always` (sm2's own default is `on-failure`). Instances are
+separate processes, so they can't share one port like pm2's cluster mode, but
+`NODE_APP_INSTANCE` is set just as pm2 sets it. The full mapping is in the
+[docs](https://sm2.dev/docs#pm2).
+
 ## Configuration
 
 Describe your stack in `sm2.yaml` **or** `sm2.toml` — sm2 picks the parser
-by file extension. `sm2 config init -c sm2.toml` writes a TOML starter.
+by file extension. `sm2 config init` writes a starter. Relative paths are
+resolved from the config file's folder, and an app without a `directory` runs
+there. Every key is listed in the [config reference](https://sm2.dev/docs#config-reference).
 
 ```yaml
 agent:
@@ -233,23 +265,40 @@ agent:
 apps:
   api:
     command: "./api"
+    directory: /srv/api
+    instances: 2                  # api-0, api-1 (NODE_APP_INSTANCE=0, 1)
     restart:
-      policy: always
+      policy: always              # always | on-failure (default) | never
       max_retries: 5
-    instances: 2
+      min_uptime: 10s             # only quick crashes count toward max_retries
     max_memory_restart: 300M
+    env_file: /etc/api/.env       # or a list; re-read on every restart
     environment:
-      PORT: "8080"
+      PORT: "8080"                # wins over env_file
+    health_check:
+      http: http://127.0.0.1:8080/health   # or tcp: host:port, or command: "…"
 notifications:
   discord:
     enabled: true
     webhook: "https://discord.com/api/webhooks/…"
+health:                           # defaults for every health_check
+  interval: 30s
+  timeout: 5s
+  retries: 3
 ```
 
-### Environment & reload
+### Environment & env files
 
-An app's environment is a **base** it inherits plus **per-app overrides**
-(`environment:` in config, or `-e KEY=VALUE` on `start`); overrides win.
+An app's environment is built in layers, each overriding the last: the agent's
+environment (minus anything `filter_env` drops), then `env_file` / `--env-file`,
+then `NODE_APP_INSTANCE` / `SM2_INSTANCE`, then `environment:` / `-e KEY=VALUE`.
+
+```sh
+sm2 start api --env-file /etc/api/.env -- ./api   # the .env can live anywhere
+```
+
+Env files are re-read on every restart, so edit the file and `sm2 restart api`.
+A missing file is an error, and `sm2 describe` shows variable names, never values.
 
 - **Change env in config** → `sm2 config reload` restarts the apps whose env (or
   anything else) changed, leaving the rest running.
@@ -259,6 +308,27 @@ An app's environment is a **base** it inherits plus **per-app overrides**
 
 `sm2 reload` is an alias of `restart`. sm2 restarts the process (a brief blip) —
 it is not a zero-downtime rolling reload.
+
+### Health checks
+
+A running process can still be broken. Give it a probe and sm2 restarts it after
+`retries` consecutive failures (with a notification saying why):
+
+```sh
+sm2 start api --health http://127.0.0.1:8080/health -- ./api     # status < 400
+sm2 start proxy --health tcp://127.0.0.1:6432 -- ./pgbouncer      # port accepts
+sm2 start worker --health './check.sh' --health-interval 1m -- ./worker   # exit 0
+```
+
+The first check runs one interval after each start, so slow boots aren't killed.
+`sm2 describe <app>` shows the latest result.
+
+### Files
+
+sm2 keeps everything in `~/.sm2` (set `SM2_HOME` to move it): the agent socket
+and PID, `state.json` (auto-saved app list), `dump.json` (`sm2 save`),
+settings from `sm2 notify` / `sm2 set`, and `logs/<app>.{stdout,stderr}.log`
+plus `logs/agent.log`.
 
 ## Development
 

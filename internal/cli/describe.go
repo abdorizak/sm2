@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
 	"github.com/abdorizak/sm2/internal/ipc"
+	"github.com/abdorizak/sm2/internal/process"
 )
 
 func newDescribeCmd() *cobra.Command {
@@ -62,7 +64,17 @@ func printDetail(d *ipc.AppDetail) {
 	}
 	row("restart policy", policy)
 	if spec.MaxRetries > 0 {
-		row("max retries", fmt.Sprintf("%d", spec.MaxRetries))
+		mr := fmt.Sprintf("%d", spec.MaxRetries)
+		if spec.MinUptimeMs > 0 {
+			mr += fmt.Sprintf(" (quick crashes under %dms in a row)", spec.MinUptimeMs)
+		}
+		row("max retries", mr)
+	}
+	if spec.InstanceVar != "" {
+		row("instance var", fmt.Sprintf("%s=%d", spec.InstanceVar, spec.Instance))
+	}
+	if len(spec.FilterEnv) > 0 {
+		row("filter env", strings.Join(spec.FilterEnv, " "))
 	}
 	if spec.KillTimeoutMs > 0 {
 		row("kill timeout", fmt.Sprintf("%dms", spec.KillTimeoutMs))
@@ -82,6 +94,35 @@ func printDetail(d *ipc.AppDetail) {
 	}
 	if spec.CronRestart != "" {
 		row("cron restart", spec.CronRestart)
+	}
+	if spec.HealthCheck != "" {
+		check := spec.HealthCheck
+		if spec.HealthIntervalMs > 0 {
+			check += fmt.Sprintf(" (every %dms)", spec.HealthIntervalMs)
+		}
+		row("health check", check)
+		switch s.Health {
+		case "healthy":
+			row("health", green("healthy"))
+		case "unhealthy":
+			row("health", red("unhealthy")+" — "+s.HealthError)
+		case "":
+			if s.PID > 0 {
+				row("health", dim("pending (first check one interval after start)"))
+			}
+		}
+	}
+	if len(spec.EnvFiles) > 0 {
+		keys, err := process.EnvFileKeys(spec.EnvFiles)
+		files := strings.Join(spec.EnvFiles, ", ")
+		if err != nil {
+			row("env files", files+" "+red("("+err.Error()+")"))
+		} else {
+			row("env files", files)
+			if len(keys) > 0 {
+				row("env file keys", strings.Join(keys, " "))
+			}
+		}
 	}
 	row("stdout log", d.StdoutLog)
 	row("stderr log", d.StderrLog)
